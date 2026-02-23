@@ -44,6 +44,21 @@ def register():
             return redirect(url_for('register'))
         user = User(username=username, password=password)
         db.session.add(user)
+        db.session.flush()  # Dapatkan id user sebelum commit
+
+        # Buat kategori default
+        default_categories = [
+            Category(name='Gaji', type='income', user_id=user.id),
+            Category(name='Hadiah', type='income', user_id=user.id),
+            Category(name='Makanan', type='expense', user_id=user.id),
+            Category(name='Transport', type='expense', user_id=user.id),
+            Category(name='Belanja', type='expense', user_id=user.id),
+            Category(name='Tagihan', type='expense', user_id=user.id),
+            Category(name='Transfer (Keluar)', type='expense', user_id=user.id),
+            Category(name='Transfer (Masuk)', type='income', user_id=user.id),
+            Category(name='Biaya Transfer', type='expense', user_id=user.id),
+        ]
+        db.session.add_all(default_categories)
         db.session.commit()
         flash('Registrasi berhasil, silakan login')
         return redirect(url_for('login'))
@@ -436,3 +451,90 @@ def unshare_wallet(id):
     db.session.commit()
     flash('Berbagi dompet dihentikan')
     return redirect(url_for('wallets'))
+
+# ================== FITUR TRANSFER ==================
+@app.route('/transfer', methods=['GET', 'POST'])
+@login_required
+def transfer():
+    wallets = Wallet.query.filter_by(user_id=current_user.id).all()
+    if request.method == 'POST':
+        from_wallet_id = int(request.form['from_wallet'])
+        to_wallet_id = int(request.form['to_wallet'])
+        amount = float(request.form['amount'])
+        fee = float(request.form.get('fee', 0))
+        description = request.form.get('description', 'Transfer')
+
+        # Validasi dompet sama
+        if from_wallet_id == to_wallet_id:
+            flash('Dompet asal dan tujuan tidak boleh sama')
+            return redirect(url_for('transfer'))
+
+        from_wallet = Wallet.query.get(from_wallet_id)
+        to_wallet = Wallet.query.get(to_wallet_id)
+
+        # Validasi saldo
+        if from_wallet.balance < amount + fee:
+            flash('Saldo tidak mencukupi (termasuk biaya transfer)')
+            return redirect(url_for('transfer'))
+
+        # Cari atau buat kategori khusus transfer
+        transfer_out_cat = Category.query.filter_by(user_id=current_user.id, name='Transfer (Keluar)', type='expense').first()
+        if not transfer_out_cat:
+            transfer_out_cat = Category(name='Transfer (Keluar)', type='expense', user_id=current_user.id)
+            db.session.add(transfer_out_cat)
+            db.session.flush()  # Penting: dapatkan ID
+
+        transfer_in_cat = Category.query.filter_by(user_id=current_user.id, name='Transfer (Masuk)', type='income').first()
+        if not transfer_in_cat:
+            transfer_in_cat = Category(name='Transfer (Masuk)', type='income', user_id=current_user.id)
+            db.session.add(transfer_in_cat)
+            db.session.flush()  # Penting: dapatkan ID
+
+        # Proses transaksi keluar
+        trans_out = Transaction(
+            amount=amount,
+            description=f'Transfer ke {to_wallet.name}: {description}',
+            type='expense',
+            category_id=transfer_out_cat.id,
+            wallet_id=from_wallet.id,
+            user_id=current_user.id
+        )
+        from_wallet.balance -= amount
+        db.session.add(trans_out)
+
+        # Proses transaksi masuk
+        trans_in = Transaction(
+            amount=amount,
+            description=f'Transfer dari {from_wallet.name}: {description}',
+            type='income',
+            category_id=transfer_in_cat.id,
+            wallet_id=to_wallet.id,
+            user_id=current_user.id
+        )
+        to_wallet.balance += amount
+        db.session.add(trans_in)
+
+        # Proses biaya transfer (jika ada)
+        if fee > 0:
+            fee_cat = Category.query.filter_by(user_id=current_user.id, name='Biaya Transfer', type='expense').first()
+            if not fee_cat:
+                fee_cat = Category(name='Biaya Transfer', type='expense', user_id=current_user.id)
+                db.session.add(fee_cat)
+                db.session.flush()  # Penting: dapatkan ID
+
+            trans_fee = Transaction(
+                amount=fee,
+                description=f'Biaya transfer ke {to_wallet.name}',
+                type='expense',
+                category_id=fee_cat.id,
+                wallet_id=from_wallet.id,
+                user_id=current_user.id
+            )
+            from_wallet.balance -= fee
+            db.session.add(trans_fee)
+
+        db.session.commit()
+        flash('Transfer berhasil')
+        return redirect(url_for('wallets'))
+
+    return render_template('transfer.html', wallets=wallets)

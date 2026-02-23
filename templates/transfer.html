@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Transfer Antar Dompet{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-arrow-left-right me-2"></i>Transfer Antar Dompet
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label for="from_wallet" class="form-label fw-semibold">Dari Dompet</label>
+                        <select class="form-select" id="from_wallet" name="from_wallet" required>
+                            <option value="">-- Pilih Dompet Asal --</option>
+                            {% for w in wallets %}
+                                <option value="{{ w.id }}">{{ w.name }} (Rp {{ "{:,.0f}".format(w.balance) }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="to_wallet" class="form-label fw-semibold">Ke Dompet</label>
+                        <select class="form-select" id="to_wallet" name="to_wallet" required>
+                            <option value="">-- Pilih Dompet Tujuan --</option>
+                            {% for w in wallets %}
+                                <option value="{{ w.id }}">{{ w.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="amount" class="form-label fw-semibold">Jumlah Transfer</label>
+                        <div class="input-group">
+                            <span class="input-group-text">Rp</span>
+                            <input type="number" step="0.01" class="form-control" id="amount" name="amount" placeholder="0.00" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fee" class="form-label fw-semibold">Biaya Transfer (opsional)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">Rp</span>
+                            <input type="number" step="0.01" class="form-control" id="fee" name="fee" value="0" placeholder="0.00">
+                        </div>
+                        <small class="text-muted">Biaya akan dikurangkan dari dompet asal</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label fw-semibold">Deskripsi (opsional)</label>
+                        <input type="text" class="form-control" id="description" name="description" placeholder="Misal: Transfer bulanan">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send"></i> Transfer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Mencegah memilih dompet yang sama
+document.getElementById('from_wallet').addEventListener('change', function() {
+    let fromVal = this.value;
+    let toSelect = document.getElementById('to_wallet');
+    Array.from(toSelect.options).forEach(option => {
+        if (option.value === fromVal) {
+            option.disabled = true;
+        } else {
+            option.disabled = false;
+        }
+    });
+});
+</script>
+{% endblock %}
