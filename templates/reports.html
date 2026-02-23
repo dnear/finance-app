@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Laporan{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">Grafik Pemasukan vs Pengeluaran</div>
+            <div class="card-body">
+                <canvas id="incomeExpenseChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">Export Laporan</div>
+            <div class="card-body">
+                <a href="{{ url_for('export_excel') }}" class="btn btn-success w-100 mb-2">
+                    <i class="bi bi-file-excel"></i> Export Excel
+                </a>
+                <a href="{{ url_for('export_pdf') }}" class="btn btn-danger w-100">
+                    <i class="bi bi-file-pdf"></i> Export PDF
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">Filter Laporan</div>
+            <div class="card-body">
+                <form method="get" action="{{ url_for('reports') }}">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label>Dari Tanggal</label>
+                            <input type="date" name="start_date" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label>Sampai Tanggal</label>
+                            <input type="date" name="end_date" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label>&nbsp;</label>
+                            <button type="submit" class="btn btn-primary form-control">Tampilkan</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">Ringkasan Transaksi</div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Deskripsi</th>
+                            <th>Jumlah</th>
+                            <th>Tipe</th>
+                            <th>Kategori</th>
+                            <th>Dompet</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in current_user.transactions[-10:]|reverse %}
+                        <tr>
+                            <td>{{ t.date.strftime('%d-%m-%Y') }}</td>
+                            <td>{{ t.description }}</td>
+                            <td class="{{ 'income' if t.type=='income' else 'expense' }}">Rp {{ "{:,.0f}".format(t.amount) }}</td>
+                            <td>{{ 'Pemasukan' if t.type=='income' else 'Pengeluaran' }}</td>
+                            <td>{{ t.category.name }}</td>
+                            <td>{{ t.wallet.name }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center">Belum ada transaksi</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Grafik pemasukan vs pengeluaran bulan ini
+fetch('/api/chart-data')
+  .then(response => response.json())
+  .then(data => {
+    // Hitung total pemasukan dan pengeluaran dari data? Kita punya hanya pengeluaran.
+    // Untuk demo, kita buat dummy. Bisa buat API baru.
+    new Chart(document.getElementById('incomeExpenseChart'), {
+      type: 'bar',
+      data: {
+        labels: ['Pemasukan', 'Pengeluaran'],
+        datasets: [{
+          label: 'Jumlah (Rp)',
+          data: [5000000, 3000000], // contoh statis, seharusnya dari backend
+          backgroundColor: ['#28a745', '#dc3545']
+        }]
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Transaksi{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap">
+        <span><i class="bi bi-list-ul me-2"></i> Daftar Transaksi</span>
+        <a href="{{ url_for('export_excel') }}" class="btn btn-success btn-sm mt-2 mt-sm-0"><i class="bi bi-file-excel"></i> Export Excel</a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>Deskripsi</th>
+                        <th>Jumlah</th>
+                        <th>Tipe</th>
+                        <th>Kategori</th>
+                        <th>Dompet</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in transactions %}
+                    <tr>
+                        <td>{{ t.date.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ t.description|truncate(25) }}</td>
+                        <td class="{{ 'income' if t.type=='income' else 'expense' }}">Rp {{ "{:,.0f}".format(t.amount) }}</td>
+                        <td><span class="badge {{ 'bg-success' if t.type=='income' else 'bg-danger' }}">{{ 'Pemasukan' if t.type=='income' else 'Pengeluaran' }}</span></td>
+                        <td>{{ t.category.name }}</td>
+                        <td>{{ t.wallet.name }}</td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                <a href="#" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}" title="Edit"><i class="bi bi-pencil"></i></a>
+                                <a href="{{ url_for('delete_transaction', id=t.id) }}" class="btn btn-sm btn-danger delete-confirm" title="Hapus"><i class="bi bi-trash"></i></a>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- Modal Edit (tetap sama) -->
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

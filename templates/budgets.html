@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Anggaran{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">Tambah/Ubah Anggaran</div>
+            <div class="card-body">
+                <form action="{{ url_for('add_budget') }}" method="post">
+                    <div class="mb-3">
+                        <label for="category_id" class="form-label">Kategori</label>
+                        <select class="form-select" name="category_id" required>
+                            <option value="">Pilih Kategori</option>
+                            {% for cat in categories if cat.type == 'expense' %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="mb-3">
+                                <label for="month" class="form-label">Bulan</label>
+                                <select class="form-select" name="month" required>
+                                    {% for m in range(1,13) %}
+                                        <option value="{{ m }}" {% if m==month %}selected{% endif %}>{{ m }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="mb-3">
+                                <label for="year" class="form-label">Tahun</label>
+                                <input type="number" class="form-control" name="year" value="{{ year }}" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Target Anggaran</label>
+                        <input type="number" step="0.01" class="form-control" name="amount" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">Daftar Anggaran Bulan {{ month }}/{{ year }}</div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Kategori</th>
+                            <th>Target</th>
+                            <th>Terpakai</th>
+                            <th>Sisa</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for budget in budgets %}
+                        {% set terpakai = budget.category.transactions|selectattr('date.month', 'equalto', month)|selectattr('date.year', 'equalto', year)|selectattr('type', 'equalto', 'expense')|sum(attribute='amount') %}
+                        <tr>
+                            <td>{{ budget.category.name }}</td>
+                            <td>Rp {{ "{:,.0f}".format(budget.amount) }}</td>
+                            <td class="{% if terpakai > budget.amount %}text-danger{% else %}text-success{% endif %}">
+                                Rp {{ "{:,.0f}".format(terpakai) }}
+                            </td>
+                            <td>Rp {{ "{:,.0f}".format(budget.amount - terpakai) }}</td>
+                            <td>
+                                <a href="{{ url_for('delete_budget', id=budget.id) }}" class="btn btn-sm btn-danger delete-confirm">Hapus</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center">Belum ada anggaran untuk bulan ini</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
