@@ -1,87 +1,106 @@
 {% extends "base.html" %}
 {% block title %}Kategori{% endblock %}
 {% block content %}
-<div class="row">
+<div class="row g-3">
     <div class="col-md-4">
         <div class="card">
-            <div class="card-header bg-primary text-white">Tambah Kategori</div>
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-plus-circle me-2"></i>Tambah Kategori
+            </div>
             <div class="card-body">
                 <form action="{{ url_for('add_category') }}" method="post">
                     <div class="mb-3">
-                        <label for="name" class="form-label">Nama Kategori</label>
-                        <input type="text" class="form-control" id="name" name="name" required>
+                        <label for="name" class="form-label fw-semibold">Nama Kategori</label>
+                        <input type="text" class="form-control" id="name" name="name" placeholder="Contoh: Makanan" required>
                     </div>
                     <div class="mb-3">
-                        <label for="type" class="form-label">Tipe</label>
+                        <label for="type" class="form-label fw-semibold">Tipe</label>
                         <select class="form-select" id="type" name="type" required>
                             <option value="income">Pemasukan</option>
                             <option value="expense">Pengeluaran</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary">Simpan</button>
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-save me-2"></i>Simpan</button>
                 </form>
             </div>
         </div>
     </div>
+
     <div class="col-md-8">
         <div class="card">
-            <div class="card-header bg-primary text-white">Daftar Kategori</div>
-            <div class="card-body">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Nama</th>
-                            <th>Tipe</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for cat in categories %}
-                        <tr>
-                            <td>{{ cat.name }}</td>
-                            <td>{{ 'Pemasukan' if cat.type=='income' else 'Pengeluaran' }}</td>
-                            <td>
-                                <a href="#" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ cat.id }}">Edit</a>
-                                <a href="{{ url_for('delete_category', id=cat.id) }}" class="btn btn-sm btn-danger delete-confirm">Hapus</a>
-                            </td>
-                        </tr>
-                        <!-- Modal Edit -->
-                        <div class="modal fade" id="editModal{{ cat.id }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form action="{{ url_for('edit_category', id=cat.id) }}" method="post">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Edit Kategori</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-tags me-2"></i>Daftar Kategori
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Nama</th>
+                                <th>Tipe</th>
+                                <th class="text-end">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cat in categories %}
+                            <tr>
+                                <td>{{ cat.name }}</td>
+                                <td>
+                                    {% if cat.type == 'income' %}
+                                        <span class="badge bg-success">Pemasukan</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Pengeluaran</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ cat.id }}">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <a href="{{ url_for('delete_category', id=cat.id) }}" class="btn btn-sm btn-danger delete-confirm">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            <!-- Modal Edit -->
+                            <div class="modal fade" id="editModal{{ cat.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ cat.id }}" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header bg-warning text-white">
+                                            <h5 class="modal-title" id="editModalLabel{{ cat.id }}">
+                                                <i class="bi bi-pencil-square me-2"></i>Edit Kategori
+                                            </h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                         </div>
-                                        <div class="modal-body">
-                                            <div class="mb-3">
-                                                <label class="form-label">Nama</label>
-                                                <input type="text" class="form-control" name="name" value="{{ cat.name }}" required>
+                                        <form action="{{ url_for('edit_category', id=cat.id) }}" method="post">
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label for="edit_name{{ cat.id }}" class="form-label fw-semibold">Nama</label>
+                                                    <input type="text" class="form-control" id="edit_name{{ cat.id }}" name="name" value="{{ cat.name }}" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="edit_type{{ cat.id }}" class="form-label fw-semibold">Tipe</label>
+                                                    <select class="form-select" id="edit_type{{ cat.id }}" name="type" required>
+                                                        <option value="income" {% if cat.type == 'income' %}selected{% endif %}>Pemasukan</option>
+                                                        <option value="expense" {% if cat.type == 'expense' %}selected{% endif %}>Pengeluaran</option>
+                                                    </select>
+                                                </div>
                                             </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Tipe</label>
-                                                <select class="form-select" name="type" required>
-                                                    <option value="income" {% if cat.type=='income' %}selected{% endif %}>Pemasukan</option>
-                                                    <option value="expense" {% if cat.type=='expense' %}selected{% endif %}>Pengeluaran</option>
-                                                </select>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                                <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg me-2"></i>Simpan</button>
                                             </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                                            <button type="submit" class="btn btn-primary">Simpan</button>
-                                        </div>
-                                    </form>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        {% else %}
-                        <tr>
-                            <td colspan="3" class="text-center">Belum ada kategori</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                            {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center py-4">Belum ada kategori. Silakan tambah kategori baru.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
