@@ -61,38 +61,6 @@
                                     </a>
                                 </td>
                             </tr>
-                            <!-- Modal Edit -->
-                            <div class="modal fade" id="editModal{{ cat.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ cat.id }}" aria-hidden="true">
-                                <div class="modal-dialog modal-dialog-centered">
-                                    <div class="modal-content">
-                                        <div class="modal-header bg-warning text-white">
-                                            <h5 class="modal-title" id="editModalLabel{{ cat.id }}">
-                                                <i class="bi bi-pencil-square me-2"></i>Edit Kategori
-                                            </h5>
-                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <form action="{{ url_for('edit_category', id=cat.id) }}" method="post">
-                                            <div class="modal-body">
-                                                <div class="mb-3">
-                                                    <label for="edit_name{{ cat.id }}" class="form-label fw-semibold">Nama</label>
-                                                    <input type="text" class="form-control" id="edit_name{{ cat.id }}" name="name" value="{{ cat.name }}" required>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label for="edit_type{{ cat.id }}" class="form-label fw-semibold">Tipe</label>
-                                                    <select class="form-select" id="edit_type{{ cat.id }}" name="type" required>
-                                                        <option value="income" {% if cat.type == 'income' %}selected{% endif %}>Pemasukan</option>
-                                                        <option value="expense" {% if cat.type == 'expense' %}selected{% endif %}>Pengeluaran</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                                                <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg me-2"></i>Simpan</button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
                             {% else %}
                             <tr>
                                 <td colspan="3" class="text-center py-4">Belum ada kategori. Silakan tambah kategori baru.</td>
@@ -105,4 +73,39 @@
         </div>
     </div>
 </div>
+
+<!-- Modals ditempatkan di sini, di luar tabel -->
+{% for cat in categories %}
+<div class="modal fade" id="editModal{{ cat.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ cat.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title" id="editModalLabel{{ cat.id }}">
+                    <i class="bi bi-pencil-square me-2"></i>Edit Kategori
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('edit_category', id=cat.id) }}" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_name{{ cat.id }}" class="form-label fw-semibold">Nama</label>
+                        <input type="text" class="form-control" id="edit_name{{ cat.id }}" name="name" value="{{ cat.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_type{{ cat.id }}" class="form-label fw-semibold">Tipe</label>
+                        <select class="form-select" id="edit_type{{ cat.id }}" name="type" required>
+                            <option value="income" {% if cat.type == 'income' %}selected{% endif %}>Pemasukan</option>
+                            <option value="expense" {% if cat.type == 'expense' %}selected{% endif %}>Pengeluaran</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg me-2"></i>Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
 {% endblock %}
