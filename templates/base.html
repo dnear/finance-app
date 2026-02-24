@@ -13,70 +13,20 @@
     </style>
 </head>
 <body>
-    <!-- Navbar dengan hamburger menu untuk mobile -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+
+    <!-- Top Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
         <div class="container">
             <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
                 <i class="bi bi-wallet2"></i> Finance App
             </a>
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
-                            <i class="bi bi-house-door"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'transactions' %}active{% endif %}" href="{{ url_for('transactions') }}">
-                            <i class="bi bi-list"></i> Transaksi
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'categories' %}active{% endif %}" href="{{ url_for('categories') }}">
-                            <i class="bi bi-tags"></i> Kategori
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'wallets' %}active{% endif %}" href="{{ url_for('wallets') }}">
-                            <i class="bi bi-wallet2"></i> Dompet
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'budgets' %}active{% endif %}" href="{{ url_for('budgets') }}">
-                            <i class="bi bi-pie-chart"></i> Anggaran
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">
-                            <i class="bi bi-file-earmark-text"></i> Laporan
-                        </a>
-                    </li>
-<li class="nav-item">
-    <a class="nav-link {% if request.endpoint == 'transfer' %}active{% endif %}" href="{{ url_for('transfer') }}">
-        <i class="bi bi-arrow-left-right"></i> Transfer
-    </a>
-</li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-person-circle"></i> {{ current_user.username }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                            <li><a class="dropdown-item" href="#"><i class="bi bi-person"></i> Profil</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
+            <span class="navbar-text text-white ms-auto">
+                <i class="bi bi-person-circle"></i> {{ current_user.username }}
+            </span>
         </div>
     </nav>
 
-    <!-- Konten utama dengan padding bottom untuk floating button -->
+    <!-- Konten utama dengan padding bottom untuk bottom navbar -->
     <main class="container my-3 pb-5">
         {% with messages = get_flashed_messages() %}
           {% if messages %}
@@ -96,6 +46,101 @@
 
         {% block content %}{% endblock %}
     </main>
+
+    <!-- Bottom Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-bottom d-lg-none">
+        <div class="container-fluid justify-content-around">
+            <a class="nav-link text-center {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-house-door d-block"></i>
+                <small>Dashboard</small>
+            </a>
+            <a class="nav-link text-center {% if request.endpoint == 'transactions' %}active{% endif %}" href="{{ url_for('transactions') }}">
+                <i class="bi bi-list d-block"></i>
+                <small>Transaksi</small>
+            </a>
+            <a class="nav-link text-center {% if request.endpoint == 'wallets' %}active{% endif %}" href="{{ url_for('wallets') }}">
+                <i class="bi bi-wallet2 d-block"></i>
+                <small>Dompet</small>
+            </a>
+            <a class="nav-link text-center {% if request.endpoint == 'transfer' %}active{% endif %}" href="{{ url_for('transfer') }}">
+                <i class="bi bi-arrow-left-right d-block"></i>
+                <small>Transfer</small>
+            </a>
+            <button class="nav-link text-center border-0 bg-transparent" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasBottom" aria-controls="offcanvasBottom">
+                <i class="bi bi-three-dots d-block"></i>
+                <small>More</small>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Offcanvas Menu untuk Mobile -->
+    <div class="offcanvas offcanvas-bottom" tabindex="-1" id="offcanvasBottom" aria-labelledby="offcanvasBottomLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="offcanvasBottomLabel">Menu</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body small">
+            <div class="d-grid gap-2">
+                <a class="btn btn-outline-primary {% if request.endpoint == 'categories' %}active{% endif %}" href="{{ url_for('categories') }}">
+                    <i class="bi bi-tags"></i> Kategori
+                </a>
+                <a class="btn btn-outline-primary {% if request.endpoint == 'budgets' %}active{% endif %}" href="{{ url_for('budgets') }}">
+                    <i class="bi bi-pie-chart"></i> Anggaran
+                </a>
+                <a class="btn btn-outline-primary {% if request.endpoint == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">
+                    <i class="bi bi-file-earmark-text"></i> Laporan
+                </a>
+                <hr>
+                <a class="btn btn-outline-secondary" href="#"><i class="bi bi-person"></i> Profil</a>
+                <a class="btn btn-outline-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop Bottom Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-bottom d-none d-lg-flex">
+        <div class="container-fluid justify-content-around">
+            <a class="nav-link text-center {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-house-door d-block"></i>
+                <small>Dashboard</small>
+            </a>
+            <a class="nav-link text-center {% if request.endpoint == 'transactions' %}active{% endif %}" href="{{ url_for('transactions') }}">
+                <i class="bi bi-list d-block"></i>
+                <small>Transaksi</small>
+            </a>
+            <a class="nav-link text-center {% if request.endpoint == 'categories' %}active{% endif %}" href="{{ url_for('categories') }}">
+                <i class="bi bi-tags d-block"></i>
+                <small>Kategori</small>
+            </a>
+            <a class="nav-link text-center {% if request.endpoint == 'wallets' %}active{% endif %}" href="{{ url_for('wallets') }}">
+                <i class="bi bi-wallet2 d-block"></i>
+                <small>Dompet</small>
+            </a>
+            <a class="nav-link text-center {% if request.endpoint == 'budgets' %}active{% endif %}" href="{{ url_for('budgets') }}">
+                <i class="bi bi-pie-chart d-block"></i>
+                <small>Anggaran</small>
+            </a>
+            <a class="nav-link text-center {% if request.endpoint == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">
+                <i class="bi bi-file-earmark-text d-block"></i>
+                <small>Laporan</small>
+            </a>
+            <a class="nav-link text-center {% if request.endpoint == 'transfer' %}active{% endif %}" href="{{ url_for('transfer') }}">
+                <i class="bi bi-arrow-left-right d-block"></i>
+                <small>Transfer</small>
+            </a>
+            <div class="nav-link text-center dropdown">
+                <a class="dropdown-toggle text-white text-decoration-none" href="#" id="userDropdownBottom" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-person-circle d-block"></i>
+                    <small>{{ current_user.username }}</small>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdownBottom">
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-person"></i> Profil</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
 
     <!-- Floating Action Button dengan animasi -->
     <a href="#" class="floating-btn" data-bs-toggle="modal" data-bs-target="#addTransactionModal" title="Tambah Transaksi">
