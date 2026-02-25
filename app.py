@@ -11,6 +11,7 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 import os
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'kunci-rahasia-ubah-sekarang'
@@ -19,6 +20,8 @@ from datetime import timedelta
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads', 'profile_photos')
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 db.init_app(app)
 login_manager = LoginManager()
@@ -31,6 +34,9 @@ def load_user(user_id):
 
 # Buat direktori instance jika belum ada
 os.makedirs(os.path.join(app.root_path, 'instance'), exist_ok=True)
+
+# Buat direktori untuk upload foto profil
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 with app.app_context():
     db.create_all()
@@ -543,3 +549,204 @@ def transfer():
         return redirect(url_for('wallets'))
 
     return render_template('transfer.html', wallets=wallets)
+
+@app.route('/profile')
+@login_required
+def profile():
+    return render_template('profile.html')
+
+@app.route('/upload_photo', methods=['POST'])
+@login_required
+def upload_photo():
+    if 'photo' not in request.files:
+        flash('Tidak ada file yang dipilih')
+        return redirect(url_for('profile'))
+    
+    file = request.files['photo']
+    if file.filename == '':
+        flash('Tidak ada file yang dipilih')
+        return redirect(url_for('profile'))
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(f"user_{current_user.id}_{file.filename}")
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        
+        # Hapus foto lama jika ada
+        if current_user.photo and os.path.exists(os.path.join(app.root_path, 'static', current_user.photo)):
+            os.remove(os.path.join(app.root_path, 'static', current_user.photo))
+        
+        # Update database
+        current_user.photo = f'uploads/profile_photos/{filename}'
+        db.session.commit()
+        
+        flash('Foto profil berhasil diubah')
+    else:
+        flash('Format file tidak didukung. Gunakan JPG, PNG, atau GIF')
+    
+    return redirect(url_for('profile'))
+
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        current_password = request.form['current_password']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+        
+        if current_user.password != current_password:
+            flash('Password saat ini salah')
+            return redirect(url_for('change_password'))
+        
+        if new_password != confirm_password:
+            flash('Password baru tidak cocok')
+            return redirect(url_for('change_password'))
+        
+        current_user.password = new_password
+        db.session.commit()
+        flash('Password berhasil diubah')
+        return redirect(url_for('profile'))
+    
+    return render_template('change_password.html')
+
+@app.route('/backup')
+@login_required
+def backup():
+    # Backup data ke CSV
+    import csv
+    from io import StringIO
+    
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Header untuk transactions
+    writer.writerow(['Date', 'Amount', 'Description', 'Type', 'Category', 'Wallet'])
+    
+    transactions = Transaction.query.filter_by(user_id=current_user.id).all()
+    for t in transactions:
+        category = Category.query.get(t.category_id)
+        wallet = Wallet.query.get(t.wallet_id)
+        writer.writerow([
+            t.date.strftime('%Y-%m-%d %H:%M:%S'),
+            t.amount,
+            t.description,
+            t.type,
+            category.name if category else '',
+            wallet.name if wallet else ''
+        ])
+    
+    output.seek(0)
+    return send_file(
+        BytesIO(output.getvalue().encode('utf-8')),
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name='finance_backup.csv'
+    )
+
+@app.route('/import_data', methods=['GET', 'POST'])
+@login_required
+def import_data():
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('Tidak ada file yang dipilih')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('Tidak ada file yang dipilih')
+            return redirect(request.url)
+        
+        if file and file.filename.endswith('.csv'):
+            import csv
+            from io import TextIOWrapper
+            
+            stream = TextIOWrapper(file.stream, encoding='utf-8')
+            csv_reader = csv.reader(stream)
+            
+            # Skip header
+            next(csv_reader, None)
+            
+            imported_count = 0
+            errors = []
+            
+            for row_num, row in enumerate(csv_reader, start=2):
+                try:
+                    if len(row) != 6:
+                        errors.append(f'Baris {row_num}: Format tidak valid')
+                        continue
+                    
+                    date_str, amount_str, description, type_, category_name, wallet_name = row
+                    
+                    # Parse date
+                    try:
+                        date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                    except ValueError:
+                        errors.append(f'Baris {row_num}: Format tanggal tidak valid')
+                        continue
+                    
+                    # Parse amount
+                    try:
+                        amount = float(amount_str)
+                    except ValueError:
+                        errors.append(f'Baris {row_num}: Jumlah tidak valid')
+                        continue
+                    
+                    # Validate type
+                    if type_ not in ['income', 'expense']:
+                        errors.append(f'Baris {row_num}: Tipe harus income atau expense')
+                        continue
+                    
+                    # Get or create category
+                    category = Category.query.filter_by(user_id=current_user.id, name=category_name, type=type_).first()
+                    if not category:
+                        category = Category(name=category_name, type=type_, user_id=current_user.id)
+                        db.session.add(category)
+                        db.session.flush()
+                    
+                    # Get or create wallet
+                    wallet = Wallet.query.filter_by(user_id=current_user.id, name=wallet_name).first()
+                    if not wallet:
+                        wallet = Wallet(name=wallet_name, type='cash', balance=0.0, user_id=current_user.id)
+                        db.session.add(wallet)
+                        db.session.flush()
+                    
+                    # Create transaction
+                    transaction = Transaction(
+                        amount=amount,
+                        description=description,
+                        date=date,
+                        type=type_,
+                        category_id=category.id,
+                        wallet_id=wallet.id,
+                        user_id=current_user.id
+                    )
+                    db.session.add(transaction)
+                    
+                    # Update wallet balance
+                    if type_ == 'income':
+                        wallet.balance += amount
+                    else:
+                        wallet.balance -= amount
+                    
+                    imported_count += 1
+                    
+                except Exception as e:
+                    errors.append(f'Baris {row_num}: Error - {str(e)}')
+            
+            db.session.commit()
+            
+            if imported_count > 0:
+                flash(f'Berhasil mengimpor {imported_count} transaksi')
+            if errors:
+                flash(f'Error pada {len(errors)} baris: ' + '; '.join(errors[:5]))  # Show first 5 errors
+            
+            return redirect(url_for('profile'))
+        else:
+            flash('File harus berformat CSV')
+            return redirect(request.url)
+    
+    return render_template('import_data.html')

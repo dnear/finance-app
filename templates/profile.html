@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil - Finance App</title>
+</head>
+<body>
+    {% extends "base.html" %}
+
+    {% block title %}Profil{% endblock %}
+
+    {% block content %}
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0"><i class="bi bi-person"></i> Profil Pengguna</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <div class="mb-3">
+                                {% if current_user.photo %}
+                                    <img src="{{ url_for('static', filename=current_user.photo) }}" alt="Foto Profil" class="img-fluid rounded-circle" style="width: 150px; height: 150px; object-fit: cover;">
+                                {% else %}
+                                    <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 150px; height: 150px;">
+                                        <i class="bi bi-person-circle" style="font-size: 4rem; color: #6c757d;"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <form method="post" action="{{ url_for('upload_photo') }}" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <input type="file" class="form-control" id="photo" name="photo" accept="image/*" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-camera"></i> Ubah Foto</button>
+                            </form>
+                        </div>
+                        <div class="col-md-8">
+                            <h6>Informasi Akun</h6>
+                            <p><strong>Username:</strong> {{ current_user.username }}</p>
+                            <div class="mt-4">
+                                <h6>Aksi</h6>
+                                <a href="{{ url_for('change_password') }}" class="btn btn-warning mb-2 me-2"><i class="bi bi-key"></i> Ubah Password</a>
+                                <a href="{{ url_for('backup') }}" class="btn btn-info mb-2 me-2"><i class="bi bi-download"></i> Backup Data</a>
+                                <a href="{{ url_for('import_data') }}" class="btn btn-success mb-2"><i class="bi bi-upload"></i> Import Data</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+</body>
+</html>

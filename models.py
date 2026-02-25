@@ -8,6 +8,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
+    photo = db.Column(db.String(200), nullable=True)  # Path to profile photo
     categories = db.relationship('Category', backref='user', lazy=True, cascade='all, delete-orphan')
     wallets = db.relationship('Wallet', backref='user', lazy=True, cascade='all, delete-orphan')
     transactions = db.relationship('Transaction', backref='user', lazy=True, cascade='all, delete-orphan')
