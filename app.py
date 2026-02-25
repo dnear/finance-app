@@ -14,6 +14,9 @@ import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'kunci-rahasia-ubah-sekarang'
+# durasi cookie untuk fitur "ingat saya" (opsional, default 365 hari)
+from datetime import timedelta
+app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -69,7 +72,9 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
         if user and user.password == request.form['password']:
-            login_user(user)
+            # cek apakah user memilih "ingat saya"
+            remember = True if request.form.get('remember') else False
+            login_user(user, remember=remember)
             return redirect(url_for('dashboard'))
         flash('Username atau password salah')
     return render_template('login.html')
