@@ -24,20 +24,103 @@
                     {% for t in transactions %}
                     <tr>
                         <td>{{ t.date.strftime('%d/%m/%Y %H:%M') }}</td>
-                        <td>{{ t.description|truncate(25) }}</td>
+                        <td>
+                            <div>{{ t.description|truncate(25) }}</div>
+                            <div class="d-flex gap-1 mt-1">
+                                <button type="button" class="btn btn-sm btn-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}" title="Edit"><i class="bi bi-pencil"></i></button>
+                                <button type="button" class="btn btn-sm btn-danger py-0 px-1 delete-confirm" title="Hapus" onclick="location.href='{{ url_for('delete_transaction', id=t.id) }}'"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </td>
                         <td class="{{ 'income' if t.type=='income' else 'expense' }}">Rp {{ "{:,.0f}".format(t.amount) }}</td>
                         <td><span class="badge {{ 'bg-success' if t.type=='income' else 'bg-danger' }}">{{ 'Pemasukan' if t.type=='income' else 'Pengeluaran' }}</span></td>
                         <td>{{ t.category.name }}</td>
                         <td>{{ t.wallet.name }}</td>
                         <td>
-                            <div class="d-flex flex-wrap gap-1">
-                                <a href="#" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}" title="Edit"><i class="bi bi-pencil"></i></a>
-                                <a href="{{ url_for('delete_transaction', id=t.id) }}" class="btn btn-sm btn-danger delete-confirm" title="Hapus"><i class="bi bi-trash"></i></a>
+                            <!-- normal buttons for larger screens -->
+                            <div class="d-flex flex-wrap gap-1 d-none d-sm-flex">
+                                <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}" title="Edit"><i class="bi bi-pencil"></i></button>
+                                <button type="button" class="btn btn-sm btn-danger delete-confirm" title="Hapus" onclick="location.href='{{ url_for('delete_transaction', id=t.id) }}'"><i class="bi bi-trash"></i></button>
+                            </div>
+                            <!-- dropdown menu for small screens -->
+                            <div class="d-flex d-sm-none justify-content-center">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="actionsDropdown{{ t.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionsDropdown{{ t.id }}">
+                                        <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}">Edit</button></li>
+                                        <li><button class="dropdown-item delete-confirm" type="button" onclick="location.href='{{ url_for('delete_transaction', id=t.id) }}'">Hapus</button></li>
+                                    </ul>
+                                </div>
                             </div>
                         </td>
                     </tr>
-                    <!-- Modal Edit (tetap sama) -->
                     {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- generate modals outside table to avoid nesting issues -->
+{% for t in transactions %}
+<div class="modal fade" id="editModal{{ t.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ t.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title" id="editModalLabel{{ t.id }}"><i class="bi bi-pencil-square"></i> Edit Transaksi</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('edit_transaction', id=t.id) }}" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="amount{{ t.id }}" class="form-label fw-semibold">Jumlah (Rp)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">Rp</span>
+                            <input type="number" step="0.01" class="form-control" id="amount{{ t.id }}" name="amount" value="{{ t.amount }}" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description{{ t.id }}" class="form-label fw-semibold">Deskripsi</label>
+                        <input type="text" class="form-control" id="description{{ t.id }}" name="description" value="{{ t.description }}">
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label for="type{{ t.id }}" class="form-label fw-semibold">Tipe</label>
+                            <select class="form-select" id="type{{ t.id }}" name="type" required>
+                                <option value="income" {% if t.type=='income' %}selected{% endif %}>Pemasukan</option>
+                                <option value="expense" {% if t.type=='expense' %}selected{% endif %}>Pengeluaran</option>
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label for="category_id{{ t.id }}" class="form-label fw-semibold">Kategori</label>
+                            <select class="form-select" id="category_id{{ t.id }}" name="category_id" required>
+                                <option value="">Pilih</option>
+                                {% for cat in categories %}
+                                    <option value="{{ cat.id }}" {% if cat.id == t.category_id %}selected{% endif %}>{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="wallet_id{{ t.id }}" class="form-label fw-semibold">Dompet</label>
+                        <select class="form-select" id="wallet_id{{ t.id }}" name="wallet_id" required>
+                            <option value="">Pilih Dompet</option>
+                            {% for wallet in wallets %}
+                                <option value="{{ wallet.id }}" {% if wallet.id == t.wallet_id %}selected{% endif %}>{{ wallet.name }} (Rp {{ "{:,.0f}".format(wallet.balance) }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg"></i> Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
                 </tbody>
             </table>
         </div>

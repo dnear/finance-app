@@ -31,7 +31,17 @@
 </div>
 
 <div class="row mt-4 g-3">
-    <div class="col-12">
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-transparent">
+                <i class="bi bi-bar-chart me-2"></i> Perbandingan Pemasukan & Pengeluaran
+            </div>
+            <div class="card-body">
+                <canvas id="incomeExpenseChart" width="400" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
         <div class="card">
             <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-clock-history me-2"></i> Transaksi Terbaru</span>
@@ -72,10 +82,47 @@
         </div>
     </div>
 </div>
+<!-- additional chart rows -->
+<div class="row mt-4 g-3">
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-transparent">
+                <i class="bi bi-graph-up"></i> Income vs Expense (6 bulan terakhir)
+            </div>
+            <div class="card-body">
+                <canvas id="incomeExpenseLineChart" width="400" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-transparent">
+                <i class="bi bi-bar-chart"></i> Budget vs Realisasi (bulan ini)
+            </div>
+            <div class="card-body">
+                <canvas id="budgetRealizationChart" width="400" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4 g-3">
+    <div class="col-12">
+        <div class="card h-100">
+            <div class="card-header bg-transparent">
+                <i class="bi bi-clock-history"></i> Cashflow Balance (30 hari terakhir)
+            </div>
+            <div class="card-body">
+                <canvas id="cashflowChart" width="800" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// Pie Chart - Pengeluaran per Kategori
 fetch('/api/chart-data')
   .then(response => response.json())
   .then(data => {
@@ -101,6 +148,157 @@ fetch('/api/chart-data')
           }
         },
         layout: { padding: { top: 10, bottom: 10 } }
+      }
+    });
+  });
+
+// Bar Chart - Perbandingan Pemasukan & Pengeluaran
+fetch('/api/income-expense-data')
+  .then(response => response.json())
+  .then(data => {
+    new Chart(document.getElementById('incomeExpenseChart'), {
+      type: 'bar',
+      data: {
+        labels: ['Pemasukan', 'Pengeluaran'],
+        datasets: [{
+          label: 'Pemasukan',
+          data: [data.income, 0],
+          backgroundColor: '#10b981',
+          borderRadius: 4
+        }, {
+          label: 'Pengeluaran',
+          data: [0, data.expense],
+          backgroundColor: '#ef4444',
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        indexAxis: 'y',
+        scales: {
+          x: {
+            stacked: false,
+            ticks: {
+              callback: function(value) {
+                return 'Rp ' + value.toLocaleString('id-ID');
+              }
+            }
+          },
+          y: {
+            stacked: false
+          }
+        },
+        plugins: {
+          legend: {
+            position: 'bottom'
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.dataset.label + ': Rp ' + context.parsed.x.toLocaleString('id-ID');
+              }
+            }
+          }
+        }
+      }
+    });
+  });
+
+// Line Chart - Income vs Expense over time
+fetch('/api/income-expense-line')
+  .then(res => res.json())
+  .then(data => {
+    new Chart(document.getElementById('incomeExpenseLineChart'), {
+      type: 'line',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: 'Pemasukan',
+          data: data.income,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16,185,129,0.2)',
+          tension: 0.3
+        }, {
+          label: 'Pengeluaran',
+          data: data.expense,
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239,68,68,0.2)',
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+          y: {
+            ticks: {
+              callback: function(value) { return 'Rp ' + value.toLocaleString('id-ID'); }
+            }
+          }
+        }
+      }
+    });
+  });
+
+// Bar Chart - Budget vs Realisasi
+fetch('/api/budget-realization')
+  .then(res => res.json())
+  .then(data => {
+    new Chart(document.getElementById('budgetRealizationChart'), {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: 'Budget',
+          data: data.budget,
+          backgroundColor: '#3b82f6'
+        }, {
+          label: 'Realisasi',
+          data: data.real,
+          backgroundColor: '#f59e0b'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+          y: {
+            ticks: {
+              callback: function(v) { return 'Rp ' + v.toLocaleString('id-ID'); }
+            }
+          }
+        }
+      }
+    });
+  });
+
+// Line Chart - Cashflow Balance
+fetch('/api/cashflow-data')
+  .then(res => res.json())
+  .then(data => {
+    new Chart(document.getElementById('cashflowChart'), {
+      type: 'line',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: 'Saldo',
+          data: data.balance,
+          borderColor: '#8b5cf6',
+          backgroundColor: 'rgba(139,92,246,0.2)',
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+          y: {
+            ticks: {
+              callback: function(v) { return 'Rp ' + v.toLocaleString('id-ID'); }
+            }
+          }
+        }
       }
     });
   });

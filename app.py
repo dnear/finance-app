@@ -383,6 +383,106 @@ def chart_data():
            group_by(Category.id).all()
     return jsonify({'labels': [d[0] for d in data], 'values': [float(d[1]) for d in data]})
 
+@app.route('/api/income-expense-data')
+@login_required
+def income_expense_data():
+    from sqlalchemy import func, extract
+    now = datetime.now()
+    
+    # Get monthly income and expense totals
+    income = db.session.query(func.sum(Transaction.amount)).\
+             filter(Transaction.user_id == current_user.id,
+                    Transaction.type == 'income',
+                    extract('month', Transaction.date) == now.month,
+                    extract('year', Transaction.date) == now.year).scalar() or 0
+    
+    expense = db.session.query(func.sum(Transaction.amount)).\
+              filter(Transaction.user_id == current_user.id,
+                     Transaction.type == 'expense',
+                     extract('month', Transaction.date) == now.month,
+                     extract('year', Transaction.date) == now.year).scalar() or 0
+    
+    return jsonify({
+        'labels': ['Pemasukan', 'Pengeluaran'],
+        'income': float(income),
+        'expense': float(expense)
+    })
+
+@app.route('/api/income-expense-line')
+@login_required
+def income_expense_line():
+    from sqlalchemy import func, extract
+    now = datetime.now()
+    labels = []
+    incomes = []
+    expenses = []
+    # last 6 months
+    for i in range(5, -1, -1):
+        year = now.year
+        month = now.month - i
+        while month <= 0:
+            month += 12
+            year -= 1
+        label = f"{month}/{year}"
+        inc = db.session.query(func.sum(Transaction.amount)).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.type == 'income',
+            extract('month', Transaction.date) == month,
+            extract('year', Transaction.date) == year
+        ).scalar() or 0
+        exp = db.session.query(func.sum(Transaction.amount)).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.type == 'expense',
+            extract('month', Transaction.date) == month,
+            extract('year', Transaction.date) == year
+        ).scalar() or 0
+        labels.append(label)
+        incomes.append(float(inc))
+        expenses.append(float(exp))
+    return jsonify({'labels': labels, 'income': incomes, 'expense': expenses})
+
+@app.route('/api/budget-realization')
+@login_required
+def budget_realization():
+    from sqlalchemy import func, extract
+    now = datetime.now()
+    budgets = Budget.query.filter_by(user_id=current_user.id, month=now.month, year=now.year).all()
+    labels = []
+    budget_vals = []
+    real_vals = []
+    for b in budgets:
+        labels.append(b.category.name)
+        budget_vals.append(b.amount)
+        real = db.session.query(func.sum(Transaction.amount)).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.category_id == b.category_id,
+            Transaction.type == 'expense',
+            extract('month', Transaction.date) == now.month,
+            extract('year', Transaction.date) == now.year
+        ).scalar() or 0
+        real_vals.append(float(real))
+    return jsonify({'labels': labels, 'budget': budget_vals, 'real': real_vals})
+
+@app.route('/api/cashflow-data')
+@login_required
+def cashflow_data():
+    from datetime import timedelta
+    now = datetime.now()
+    start = now - timedelta(days=30)
+    transactions = Transaction.query.filter(Transaction.user_id == current_user.id,
+                                         Transaction.date >= start).order_by(Transaction.date).all()
+    labels = []
+    balances = []
+    bal = 0
+    for t in transactions:
+        if t.type == 'income':
+            bal += t.amount
+        else:
+            bal -= t.amount
+        labels.append(t.date.strftime('%d/%m'))
+        balances.append(bal)
+    return jsonify({'labels': labels, 'balance': balances})
+
 @app.route('/export/excel')
 @login_required
 def export_excel():
