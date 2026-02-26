@@ -32,6 +32,20 @@ login_manager.login_view = 'login'
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+@app.context_processor
+def inject_categories_wallets():
+    try:
+        if current_user.is_authenticated:
+            categories = Category.query.filter_by(user_id=current_user.id).all()
+            wallets = Wallet.query.filter_by(user_id=current_user.id).all()
+            shared_wallets = SharedWallet.query.filter_by(shared_with_id=current_user.id, permission='add').all()
+            shared_wallet_objects = [sw.wallet for sw in shared_wallets]
+            all_wallets = wallets + shared_wallet_objects
+            return dict(categories=categories, wallets=all_wallets)
+    except Exception:
+        pass
+    return dict(categories=[], wallets=[])
+
 # Buat direktori instance jika belum ada
 os.makedirs(os.path.join(app.root_path, 'instance'), exist_ok=True)
 
