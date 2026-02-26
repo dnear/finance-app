@@ -2,13 +2,29 @@
 __pycache__/
 *.pyc
 
-# Database lokal
-instance/
+# Environment
+.env
+venv/
+.venv/
+
+# Database
+instance/database.db
+*.sqlite3
 *.db
 
-# Virtual environment (kalau ada nanti)
-venv/
-.env
+# Uploads
+static/uploads/
 
-# OS files
+# IDE
+.vscode/
+
+# Logs
+*.log
+
+# Backup
+*.sql
+backup_*.sql
+
+# OS
 .DS_Store
+Thumbs.db
