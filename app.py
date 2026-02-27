@@ -3,6 +3,10 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
 from datetime import datetime
 import pandas as pd
+from dotenv import load_dotenv
+
+# load environment variables from .env file (if present)
+load_dotenv()
 from io import BytesIO
 import xlsxwriter
 from reportlab.pdfgen import canvas
@@ -12,9 +16,11 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 import os
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'kunci-rahasia-ubah-sekarang'
+# gunakan environment variable untuk secret key agar tidak tersimpan di kode
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'kunci-rahasia-ubah-sekarang')
 # durasi cookie untuk fitur "ingat saya" (opsional, default 365 hari)
 from datetime import timedelta
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
@@ -59,13 +65,14 @@ with app.app_context():
 def register():
     if request.method == 'POST':
         username = request.form['username']
-        password = request.form['password']  # hash password disarankan
+        password = request.form['password']
         # Cek apakah username sudah ada
         existing_user = User.query.filter_by(username=username).first()
         if existing_user:
             flash('Username sudah digunakan')
             return redirect(url_for('register'))
-        user = User(username=username, password=password)
+        user = User(username=username)
+        user.set_password(password)  # Hash password sebelum menyimpan
         db.session.add(user)
         db.session.flush()  # Dapatkan id user sebelum commit
 
@@ -91,7 +98,7 @@ def register():
 def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
-        if user and user.password == request.form['password']:
+        if user and user.check_password(request.form['password']):
             # cek apakah user memilih "ingat saya"
             remember = True if request.form.get('remember') else False
             login_user(user, remember=remember)
@@ -712,7 +719,7 @@ def change_password():
         new_password = request.form['new_password']
         confirm_password = request.form['confirm_password']
         
-        if current_user.password != current_password:
+        if not current_user.check_password(current_password):
             flash('Password saat ini salah')
             return redirect(url_for('change_password'))
         
@@ -720,7 +727,7 @@ def change_password():
             flash('Password baru tidak cocok')
             return redirect(url_for('change_password'))
         
-        current_user.password = new_password
+        current_user.set_password(new_password)  # Hash password baru sebelum menyimpan
         db.session.commit()
         flash('Password berhasil diubah')
         return redirect(url_for('profile'))

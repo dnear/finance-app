@@ -1,13 +1,14 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(120), nullable=False)
+    password = db.Column(db.String(255), nullable=False)  # Increased length for hash storage
     photo = db.Column(db.String(200), nullable=True)  # Path to profile photo
     categories = db.relationship('Category', backref='user', lazy=True, cascade='all, delete-orphan')
     wallets = db.relationship('Wallet', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -15,6 +16,14 @@ class User(UserMixin, db.Model):
     budgets = db.relationship('Budget', backref='user', lazy=True, cascade='all, delete-orphan')
     # Relasi ke shared_wallets (dompet yang diterima dari orang lain)
     shared_wallets = db.relationship('SharedWallet', foreign_keys='SharedWallet.shared_with_id', back_populates='shared_with_user', lazy=True)
+
+    def set_password(self, password):
+        """Hash dan simpan password"""
+        self.password = generate_password_hash(password)
+
+    def check_password(self, password):
+        """Verifikasi password dengan hash yang tersimpan"""
+        return check_password_hash(self.password, password)
 
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
