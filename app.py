@@ -2,13 +2,13 @@ from flask import Flask, render_template, redirect, url_for, request, flash, jso
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
 from datetime import datetime
-import pandas as pd
 from dotenv import load_dotenv
 
 # load environment variables from .env file (if present)
 load_dotenv()
 from io import BytesIO
-import xlsxwriter
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib import colors
@@ -493,14 +493,47 @@ def cashflow_data():
 @app.route('/export/excel')
 @login_required
 def export_excel():
-    transactions = Transaction.query.filter_by(user_id=current_user.id).all()
-    data = []
-    for t in transactions:
-        data.append([t.date.strftime('%Y-%m-%d %H:%M'), t.description, t.amount, t.type, t.category.name, t.wallet.name])
-    df = pd.DataFrame(data, columns=['Tanggal', 'Deskripsi', 'Jumlah', 'Tipe', 'Kategori', 'Dompet'])
+    transactions = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.date.desc()).all()
+    
+    # Create a new workbook and select the active sheet
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Transaksi'
+    
+    # Define header style
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    
+    # Add headers
+    headers = ['Tanggal', 'Deskripsi', 'Jumlah', 'Tipe', 'Kategori', 'Dompet']
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+    
+    # Add data rows
+    for row_num, transaction in enumerate(transactions, 2):
+        ws.cell(row=row_num, column=1).value = transaction.date.strftime('%Y-%m-%d %H:%M')
+        ws.cell(row=row_num, column=2).value = transaction.description
+        ws.cell(row=row_num, column=3).value = transaction.amount
+        ws.cell(row=row_num, column=4).value = 'Pemasukan' if transaction.type == 'income' else 'Pengeluaran'
+        ws.cell(row=row_num, column=5).value = transaction.category.name
+        ws.cell(row=row_num, column=6).value = transaction.wallet.name
+    
+    # Adjust column widths
+    ws.column_dimensions['A'].width = 18
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 12
+    ws.column_dimensions['D'].width = 12
+    ws.column_dimensions['E'].width = 15
+    ws.column_dimensions['F'].width = 15
+    
+    # Save to BytesIO
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, sheet_name='Transaksi', index=False)
+    wb.save(output)
     output.seek(0)
     return send_file(output, download_name='laporan_keuangan.xlsx', as_attachment=True)
 
