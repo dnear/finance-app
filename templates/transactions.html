@@ -74,6 +74,10 @@
             <form action="{{ url_for('edit_transaction', id=t.id) }}" method="post">
                 <div class="modal-body">
                     <div class="mb-3">
+                        <label for="date{{ t.id }}" class="form-label fw-semibold">Tanggal & Waktu</label>
+                        <input type="datetime-local" class="form-control" id="date{{ t.id }}" name="date" value="{{ t.date.strftime('%Y-%m-%dT%H:%M') }}" required>
+                    </div>
+                    <div class="mb-3">
                         <label for="amount{{ t.id }}" class="form-label fw-semibold">Jumlah (Rp)</label>
                         <div class="input-group">
                             <span class="input-group-text">Rp</span>

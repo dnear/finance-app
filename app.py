@@ -47,10 +47,10 @@ def inject_categories_wallets():
             shared_wallets = SharedWallet.query.filter_by(shared_with_id=current_user.id, permission='add').all()
             shared_wallet_objects = [sw.wallet for sw in shared_wallets]
             all_wallets = wallets + shared_wallet_objects
-            return dict(categories=categories, wallets=all_wallets)
+            return dict(categories=categories, wallets=all_wallets, datetime=datetime)
     except Exception:
         pass
-    return dict(categories=[], wallets=[])
+    return dict(categories=[], wallets=[], datetime=datetime)
 
 # Buat direktori instance jika belum ada
 os.makedirs(os.path.join(app.root_path, 'instance'), exist_ok=True)
@@ -252,6 +252,14 @@ def add_transaction():
     ttype = request.form['type']
     cat_id = int(request.form['category_id'])
     wallet_id = int(request.form['wallet_id'])
+    date_str = request.form['date']
+    
+    # Parse tanggal dari format datetime-local (YYYY-MM-DDTHH:MM)
+    try:
+        trans_date = datetime.strptime(date_str, '%Y-%m-%dT%H:%M')
+    except ValueError:
+        flash('Format tanggal tidak valid')
+        return redirect(url_for('transactions'))
 
     # Validasi wallet: apakah milik sendiri atau bersama dengan izin add
     wallet = Wallet.query.get(wallet_id)
@@ -268,7 +276,7 @@ def add_transaction():
 
     trans = Transaction(amount=amount, description=desc, type=ttype,
                         category_id=cat_id, wallet_id=wallet_id,
-                        user_id=current_user.id)
+                        user_id=current_user.id, date=trans_date)
     # Update saldo dompet
     if ttype == 'income':
         wallet.balance += amount
@@ -287,6 +295,15 @@ def edit_transaction(id):
     if trans.user_id != current_user.id:
         flash('Anda tidak memiliki akses')
         return redirect(url_for('transactions'))
+    
+    date_str = request.form['date']
+    # Parse tanggal dari format datetime-local (YYYY-MM-DDTHH:MM)
+    try:
+        trans_date = datetime.strptime(date_str, '%Y-%m-%dT%H:%M')
+    except ValueError:
+        flash('Format tanggal tidak valid')
+        return redirect(url_for('transactions'))
+    
     # Kembalikan saldo lama
     wallet = Wallet.query.get(trans.wallet_id)
     if trans.type == 'income':
@@ -300,6 +317,7 @@ def edit_transaction(id):
     trans.type = request.form['type']
     trans.category_id = int(request.form['category_id'])
     trans.wallet_id = int(request.form['wallet_id'])
+    trans.date = trans_date
 
     # Update saldo baru
     new_wallet = Wallet.query.get(trans.wallet_id)
