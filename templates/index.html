@@ -97,7 +97,7 @@
     <div class="col-12 col-lg-6">
         <div class="card h-100">
             <div class="card-header bg-transparent">
-                <i class="bi bi-bar-chart"></i> Budget vs Realisasi (bulan ini)
+                <i class="bi bi-bar-chart"></i> Anggaran vs Realisasi (bulan ini)
             </div>
             <div class="card-body">
                 <canvas id="budgetRealizationChart" width="400" height="250"></canvas>
@@ -241,7 +241,7 @@ fetch('/api/income-expense-line')
     });
   });
 
-// Bar Chart - Budget vs Realisasi
+// Bar Chart - Anggaran vs Realisasi
 fetch('/api/budget-realization')
   .then(res => res.json())
   .then(data => {
@@ -250,7 +250,7 @@ fetch('/api/budget-realization')
       data: {
         labels: data.labels,
         datasets: [{
-          label: 'Budget',
+          label: 'Anggaran',
           data: data.budget,
           backgroundColor: '#3b82f6'
         }, {

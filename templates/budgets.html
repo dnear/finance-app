@@ -53,27 +53,53 @@
                             <th>Kategori</th>
                             <th>Target</th>
                             <th>Terpakai</th>
+                            <th>Penggunaan</th>
                             <th>Sisa</th>
+                            <th>Status</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for budget in budgets %}
-                        {% set terpakai = budget.category.transactions|selectattr('date.month', 'equalto', month)|selectattr('date.year', 'equalto', year)|selectattr('type', 'equalto', 'expense')|sum(attribute='amount') %}
+                        {% for item in budget_data %}
+                        {% set budget = item.budget %}
+                        {% set terpakai = item.terpakai %}
+                        {% set persentase = (terpakai / budget.amount * 100) if budget.amount > 0 else 0 %}
                         <tr>
                             <td>{{ budget.category.name }}</td>
-                            <td>Rp {{ "{:,.0f}".format(budget.amount) }}</td>
+                            <td><strong>Rp {{ "{:,.0f}".format(budget.amount) }}</strong></td>
                             <td class="{% if terpakai > budget.amount %}text-danger{% else %}text-success{% endif %}">
-                                Rp {{ "{:,.0f}".format(terpakai) }}
+                                <a href="#" class="text-decoration-none text-reset" onclick="showBudgetDetails({{ budget.id }}, '{{ budget.category.name }}'); return false;">
+                                    Rp {{ "{:,.0f}".format(terpakai) }}
+                                </a>
                             </td>
-                            <td>Rp {{ "{:,.0f}".format(budget.amount - terpakai) }}</td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar {% if persentase > 100 %}bg-danger{% elif persentase > 80 %}bg-warning{% else %}bg-success{% endif %}" role="progressbar" style="width: {{ [persentase, 100]|min }}%" aria-valuenow="{{ persentase }}" aria-valuemin="0" aria-valuemax="100">
+                                        {{ "%.0f"|format(persentase) }}%
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="{% if budget.amount - terpakai < 0 %}text-danger fw-bold{% else %}text-success{% endif %}">
+                                    Rp {{ "{:,.0f}".format([budget.amount - terpakai, 0]|max) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if persentase > 100 %}
+                                    <span class="badge bg-danger">Melebihi</span>
+                                {% elif persentase > 80 %}
+                                    <span class="badge bg-warning text-dark">Hati-hati</span>
+                                {% else %}
+                                    <span class="badge bg-success">Aman</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <a href="{{ url_for('delete_budget', id=budget.id) }}" class="btn btn-sm btn-danger delete-confirm">Hapus</a>
                             </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="5" class="text-center">Belum ada anggaran untuk bulan ini</td>
+                            <td colspan="7" class="text-center">Belum ada anggaran untuk bulan ini</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -82,4 +108,163 @@
         </div>
     </div>
 </div>
+
+<!-- Grafik Anggaran vs Realisasi -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-bar-chart"></i> Anggaran vs Realisasi Bulan {{ month }}/{{ year }}
+            </div>
+            <div class="card-body">
+                <canvas id="budgetRealizationChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Detail Transaksi Anggaran -->
+<div class="modal fade" id="budgetDetailsModal" tabindex="-1" aria-labelledby="budgetDetailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="budgetDetailsModalLabel">Detail Transaksi Anggaran</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="detailsContent">
+          <div class="text-center">
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            Loading...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Function untuk menampilkan detail transaksi anggaran
+function showBudgetDetails(budgetId, categoryName) {
+  const modal = new bootstrap.Modal(document.getElementById('budgetDetailsModal'));
+  
+  fetch(`/api/budget-details/${budgetId}`)
+    .then(res => res.json())
+    .then(data => {
+      let html = `
+        <div class="mb-3">
+          <h6 class="text-muted">Kategori</h6>
+          <p class="fs-5 fw-bold">${data.budget_category}</p>
+        </div>
+        
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <h6 class="text-muted">Target Anggaran</h6>
+            <p class="fs-5 fw-bold text-primary">Rp ${parseFloat(data.budget_amount).toLocaleString('id-ID', {maximumFractionDigits: 0})}</p>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-muted">Periode</h6>
+            <p class="fs-5">${data.month}/${data.year}</p>
+          </div>
+        </div>
+
+        <h6 class="mt-4 mb-3">Rincian Transaksi Pengeluaran</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Deskripsi</th>
+                <th>Jumlah</th>
+                <th>Dompet</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+      
+      let totalAmount = 0;
+      if (data.transactions.length > 0) {
+        data.transactions.forEach(t => {
+          const amount = parseFloat(t.amount);
+          totalAmount += amount;
+          html += `
+            <tr>
+              <td>${t.date}</td>
+              <td>${t.description}</td>
+              <td class="text-end">Rp ${amount.toLocaleString('id-ID', {maximumFractionDigits: 0})}</td>
+              <td><small class="text-muted">${t.wallet}</small></td>
+            </tr>
+          `;
+        });
+      } else {
+        html += `<tr><td colspan="4" class="text-center text-muted">Tidak ada transaksi</td></tr>`;
+      }
+      
+      html += `
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="row mt-3 pt-3 border-top">
+          <div class="col-md-6">
+            <h6 class="text-muted">Total Pengeluaran</h6>
+            <p class="fs-5 fw-bold text-danger">Rp ${totalAmount.toLocaleString('id-ID', {maximumFractionDigits: 0})}</p>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-muted">Sisa Anggaran</h6>
+            <p class="fs-5 fw-bold ${(data.budget_amount - totalAmount) >= 0 ? 'text-success' : 'text-danger'}">
+              Rp ${(data.budget_amount - totalAmount).toLocaleString('id-ID', {maximumFractionDigits: 0})}
+            </p>
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('detailsContent').innerHTML = html;
+    })
+    .catch(err => {
+      console.error('Error:', err);
+      document.getElementById('detailsContent').innerHTML = '<div class="alert alert-danger">Terjadi kesalahan saat memuat data</div>';
+    });
+  
+  modal.show();
+}
+
+// Bar Chart - Anggaran vs Realisasi
+fetch('/api/budget-realization')
+  .then(res => res.json())
+  .then(data => {
+    if (document.getElementById('budgetRealizationChart')) {
+      new Chart(document.getElementById('budgetRealizationChart'), {
+        type: 'bar',
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: 'Anggaran',
+            data: data.budget,
+            backgroundColor: '#3b82f6'
+          }, {
+            label: 'Realisasi',
+            data: data.real,
+            backgroundColor: '#f59e0b'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+            y: {
+              ticks: {
+                callback: function(v) { return 'Rp ' + v.toLocaleString('id-ID'); }
+              }
+            }
+          }
+        }
+      });
+    }
+  })
+  .catch(err => console.error('Error loading budget data:', err));
+</script>
 {% endblock %}

@@ -376,12 +376,28 @@ def delete_transaction(id):
 @app.route('/budgets')
 @login_required
 def budgets():
+    from sqlalchemy import func, extract
     now = datetime.now()
     month = request.args.get('month', now.month, type=int)
     year = request.args.get('year', now.year, type=int)
     budgets = Budget.query.filter_by(user_id=current_user.id, month=month, year=year).all()
     categories = Category.query.filter_by(user_id=current_user.id).all()
-    return render_template('budgets.html', budgets=budgets, categories=categories, month=month, year=year)
+    
+    # Hitung terpakai untuk setiap budget
+    budget_data = []
+    for budget in budgets:
+        terpakai = db.session.query(func.sum(Transaction.amount)).\
+            filter(Transaction.user_id == current_user.id,
+                   Transaction.category_id == budget.category_id,
+                   Transaction.type == 'expense',
+                   extract('month', Transaction.date) == month,
+                   extract('year', Transaction.date) == year).scalar() or 0
+        budget_data.append({
+            'budget': budget,
+            'terpakai': float(terpakai)
+        })
+    
+    return render_template('budgets.html', budget_data=budget_data, categories=categories, month=month, year=year)
 
 @app.route('/budget/add', methods=['POST'])
 @login_required
@@ -413,6 +429,36 @@ def delete_budget(id):
     db.session.commit()
     flash('Anggaran dihapus')
     return redirect(url_for('budgets', month=month, year=year))
+
+@app.route('/api/budget-details/<int:budget_id>')
+@login_required
+def budget_details(budget_id):
+    budget = Budget.query.get_or_404(budget_id)
+    if budget.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    from sqlalchemy import extract
+    transactions = Transaction.query.\
+        filter(Transaction.user_id == current_user.id,
+               Transaction.category_id == budget.category_id,
+               Transaction.type == 'expense',
+               extract('month', Transaction.date) == budget.month,
+               extract('year', Transaction.date) == budget.year).\
+        order_by(Transaction.date.desc()).all()
+    
+    data = {
+        'budget_category': budget.category.name,
+        'budget_amount': budget.amount,
+        'month': budget.month,
+        'year': budget.year,
+        'transactions': [{
+            'date': t.date.strftime('%d/%m/%Y'),
+            'description': t.description,
+            'amount': float(t.amount),
+            'wallet': t.wallet.name
+        } for t in transactions]
+    }
+    return jsonify(data)
 
 @app.route('/reports')
 @login_required
