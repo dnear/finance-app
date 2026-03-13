@@ -325,6 +325,42 @@ body {
     margin-bottom: 0;
 }
 
+/* Budget Table Mobile Styling */
+@media (max-width: 768px) {
+    .hide-mobile {
+        display: none !important;
+    }
+    
+    .budget-row {
+        cursor: pointer;
+    }
+    
+    .budget-details-row {
+        background-color: #f8fafc !important;
+    }
+    
+    .budget-details-content {
+        padding: 10px;
+        font-size: 0.85rem;
+    }
+    
+    .budget-details-content .detail-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        border-bottom: 1px dashed #e2e8f0;
+        padding-bottom: 4px;
+    }
+    
+    .budget-details-content .detail-item:last-child {
+        border-bottom: none;
+    }
+}
+
+.budget-details-row {
+    transition: all 0.3s ease;
+}
+
 /* Transaction Mobile Card */
 .transaction-card-mobile {
     padding: 12px;
