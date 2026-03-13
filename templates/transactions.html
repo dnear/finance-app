@@ -33,7 +33,8 @@
                 </div>
             </form>
         </div>
-        <div class="table-responsive">
+        <!-- Desktop View (Table) -->
+        <div class="table-responsive d-none d-md-block">
             <table class="table table-hover align-middle mb-0">
                 <thead>
                     <tr>
@@ -43,41 +44,22 @@
                         <th>Tipe</th>
                         <th>Kategori</th>
                         <th>Dompet</th>
-                        <th>Aksi</th>
+                        <th class="text-center">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for t in transactions %}
                     <tr>
                         <td>{{ t.date.strftime('%d/%m/%Y %H:%M') }}</td>
-                        <td>
-                            <div>{{ t.description|truncate(25) }}</div>
-                            <div class="d-flex gap-1 mt-1">
-                                <button type="button" class="btn btn-sm btn-warning py-0 px-1" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}" title="Edit"><i class="bi bi-pencil"></i></button>
-                                <button type="button" class="btn btn-sm btn-danger py-0 px-1 delete-confirm" title="Hapus" onclick="location.href='{{ url_for('delete_transaction', id=t.id) }}'"><i class="bi bi-trash"></i></button>
-                            </div>
-                        </td>
+                        <td>{{ t.description|truncate(30) }}</td>
                         <td class="{{ 'income' if t.type=='income' else 'expense' }}">Rp {{ "{:,.0f}".format(t.amount) }}</td>
                         <td><span class="badge {{ 'bg-success' if t.type=='income' else 'bg-danger' }}">{{ 'Pemasukan' if t.type=='income' else 'Pengeluaran' }}</span></td>
                         <td>{{ t.category.name }}</td>
                         <td>{{ t.wallet.name }}</td>
                         <td>
-                            <!-- normal buttons for larger screens -->
-                            <div class="d-flex flex-wrap gap-1 d-none d-sm-flex">
+                            <div class="d-flex justify-content-center gap-1">
                                 <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}" title="Edit"><i class="bi bi-pencil"></i></button>
                                 <button type="button" class="btn btn-sm btn-danger delete-confirm" title="Hapus" onclick="location.href='{{ url_for('delete_transaction', id=t.id) }}'"><i class="bi bi-trash"></i></button>
-                            </div>
-                            <!-- dropdown menu for small screens -->
-                            <div class="d-flex d-sm-none justify-content-center">
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="actionsDropdown{{ t.id }}" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-three-dots"></i>
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionsDropdown{{ t.id }}">
-                                        <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}">Edit</button></li>
-                                        <li><button class="dropdown-item delete-confirm" type="button" onclick="location.href='{{ url_for('delete_transaction', id=t.id) }}'">Hapus</button></li>
-                                    </ul>
-                                </div>
                             </div>
                         </td>
                     </tr>
@@ -85,10 +67,54 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- Mobile View (Card List) -->
+        <div class="d-md-none">
+            {% for t in transactions %}
+            <div class="transaction-card-mobile">
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <div>
+                        <div class="date">{{ t.date.strftime('%d/%m/%Y %H:%M') }}</div>
+                        <div class="description text-truncate" style="max-width: 200px;">{{ t.description or 'Tanpa deskripsi' }}</div>
+                    </div>
+                    <div class="text-end">
+                        <div class="amount {{ 'income' if t.type=='income' else 'expense' }}">
+                            {{ '+' if t.type=='income' else '-' }}Rp {{ "{:,.0f}".format(t.amount) }}
+                        </div>
+                        <span class="badge badge-type {{ 'bg-success' if t.type=='income' else 'bg-danger' }}">
+                            {{ 'Pemasukan' if t.type=='income' else 'Pengeluaran' }}
+                        </span>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <div class="details">
+                        <i class="bi bi-tag me-1"></i>{{ t.category.name }} 
+                        <span class="mx-1">•</span>
+                        <i class="bi bi-wallet2 me-1"></i>{{ t.wallet.name }}
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}"><i class="bi bi-pencil me-2"></i>Edit</button></li>
+                            <li><button class="dropdown-item text-danger delete-confirm" type="button" onclick="location.href='{{ url_for('delete_transaction', id=t.id) }}'"><i class="bi bi-trash me-2"></i>Hapus</button></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% if not transactions %}
+            <div class="p-4 text-center text-muted">
+                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                Belum ada transaksi
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 
-<!-- generate modals outside table to avoid nesting issues -->
+<!-- generate modals outside list to avoid nesting issues -->
 {% for t in transactions %}
 <div class="modal fade" id="editModal{{ t.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ t.id }}" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
@@ -151,9 +177,4 @@
     </div>
 </div>
 {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
 {% endblock %}

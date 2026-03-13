@@ -325,6 +325,40 @@ body {
     margin-bottom: 0;
 }
 
+/* Transaction Mobile Card */
+.transaction-card-mobile {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    transition: background-color 0.2s;
+}
+.transaction-card-mobile:last-child {
+    border-bottom: none;
+}
+.transaction-card-mobile:active {
+    background-color: #f1f5f9;
+}
+.transaction-card-mobile .date {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+.transaction-card-mobile .description {
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+.transaction-card-mobile .details {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+.transaction-card-mobile .amount {
+    font-weight: 700;
+    font-size: 1rem;
+}
+.transaction-card-mobile .badge-type {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+}
+
 /* Responsif untuk mobile */
 @media (max-width: 768px) {
     .container {
