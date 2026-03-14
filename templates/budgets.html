@@ -169,8 +169,8 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
-        <button type="button" class="btn btn-primary" onclick="printBudgetReport()">
-          <i class="bi bi-printer"></i> Print Laporan
+        <button type="button" class="btn btn-success" id="downloadBudgetPdfBtn">
+          <i class="bi bi-file-earmark-pdf"></i> Export PDF Profesional
         </button>
       </div>
     </div>
@@ -195,7 +195,9 @@ function toggleBudgetDetail(id) {
 
 // Function untuk menampilkan detail transaksi anggaran
 function showBudgetDetails(budgetId, categoryName) {
-  const modal = new bootstrap.Modal(document.getElementById('budgetDetailsModal'));
+  const modalElement = document.getElementById('budgetDetailsModal');
+  modalElement.dataset.budgetId = budgetId; // Store budgetId in modal dataset
+  const modal = new bootstrap.Modal(modalElement);
   
   fetch(`/api/budget-details/${budgetId}`)
     .then(res => res.json())
@@ -278,274 +280,26 @@ function showBudgetDetails(budgetId, categoryName) {
   modal.show();
 }
 
-// Function untuk print laporan anggaran
+// Function untuk print laporan anggaran (dihapus, diganti dengan unduh PDF)
+/*
 function printBudgetReport() {
-  // Ambil data dari modal yang sedang terbuka
-  const modal = document.getElementById('budgetDetailsModal');
-  const content = document.getElementById('detailsContent');
-  
-  // Buat window print baru
-  const printWindow = window.open('', '_blank', 'width=800,height=600');
-  
-  // HTML untuk laporan print
-  const printContent = `
-    <!DOCTYPE html>
-    <html lang="id">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Laporan Detail Anggaran</title>
-      <style>
-        @media print {
-          body {
-            font-family: 'Times New Roman', serif;
-            font-size: 12pt;
-            line-height: 1.4;
-            margin: 20mm;
-            color: #000;
-          }
-          
-          .header {
-            text-align: center;
-            border-bottom: 2px solid #000;
-            padding-bottom: 10pt;
-            margin-bottom: 20pt;
-          }
-          
-          .header h1 {
-            font-size: 18pt;
-            margin: 0;
-            font-weight: bold;
-          }
-          
-          .header p {
-            margin: 5pt 0;
-            font-size: 10pt;
-          }
-          
-          .budget-info {
-            margin-bottom: 20pt;
-          }
-          
-          .budget-info table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15pt;
-          }
-          
-          .budget-info td {
-            padding: 5pt;
-            border: 1px solid #000;
-          }
-          
-          .budget-info .label {
-            font-weight: bold;
-            background-color: #f0f0f0;
-            width: 30%;
-          }
-          
-          .transactions {
-            margin-bottom: 20pt;
-          }
-          
-          .transactions h3 {
-            font-size: 14pt;
-            margin-bottom: 10pt;
-            border-bottom: 1px solid #000;
-            padding-bottom: 5pt;
-          }
-          
-          .transactions table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15pt;
-          }
-          
-          .transactions th,
-          .transactions td {
-            border: 1px solid #000;
-            padding: 6pt;
-            text-align: left;
-            font-size: 11pt;
-          }
-          
-          .transactions th {
-            background-color: #f0f0f0;
-            font-weight: bold;
-          }
-          
-          .transactions .amount {
-            text-align: right;
-          }
-          
-          .summary {
-            margin-top: 20pt;
-            border-top: 1px solid #000;
-            padding-top: 15pt;
-          }
-          
-          .summary table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          
-          .summary td {
-            padding: 8pt;
-            border: 1px solid #000;
-          }
-          
-          .summary .label {
-            font-weight: bold;
-            background-color: #f0f0f0;
-            width: 40%;
-          }
-          
-          .summary .amount {
-            text-align: right;
-            font-weight: bold;
-            font-size: 12pt;
-          }
-          
-          .footer {
-            margin-top: 30pt;
-            text-align: center;
-            font-size: 10pt;
-            border-top: 1px solid #000;
-            padding-top: 10pt;
-          }
-          
-          @page {
-            margin: 20mm;
-            size: A4;
-          }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Laporan Detail Anggaran</h1>
-        <p>Dicetak pada: ${new Date().toLocaleDateString('id-ID', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })}</p>
-      </div>
-      
-      <div id="printContent"></div>
-      
-      <div class="footer">
-        <p>Laporan ini dibuat secara otomatis oleh Sistem Manajemen Keuangan</p>
-      </div>
-    </body>
-    </html>
-  `;
-  
-  printWindow.document.write(printContent);
-  printWindow.document.close();
-  
-  // Tunggu konten ter-load, lalu ambil data dari modal
-  setTimeout(() => {
-    // Ambil data dari API yang sama
-    const budgetId = modal.dataset.budgetId; // Kita perlu menyimpan budgetId di modal
-    
-    if (budgetId) {
-      fetch(`/api/budget-details/${budgetId}`)
-        .then(res => res.json())
-        .then(data => {
-          let printHTML = `
-            <div class="budget-info">
-              <table>
-                <tr>
-                  <td class="label">Kategori</td>
-                  <td>${data.budget_category}</td>
-                </tr>
-                <tr>
-                  <td class="label">Target Anggaran</td>
-                  <td>Rp ${parseFloat(data.budget_amount).toLocaleString('id-ID', {maximumFractionDigits: 0})}</td>
-                </tr>
-                <tr>
-                  <td class="label">Periode</td>
-                  <td>Bulan ${data.month}/${data.year}</td>
-                </tr>
-              </table>
-            </div>
-            
-            <div class="transactions">
-              <h3>Rincian Transaksi Pengeluaran</h3>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Tanggal</th>
-                    <th>Deskripsi</th>
-                    <th>Jumlah</th>
-                    <th>Dompet</th>
-                  </tr>
-                </thead>
-                <tbody>
-          `;
-          
-          let totalAmount = 0;
-          if (data.transactions.length > 0) {
-            data.transactions.forEach(t => {
-              const amount = parseFloat(t.amount);
-              totalAmount += amount;
-              printHTML += `
-                <tr>
-                  <td>${t.date}</td>
-                  <td>${t.description}</td>
-                  <td class="amount">Rp ${amount.toLocaleString('id-ID', {maximumFractionDigits: 0})}</td>
-                  <td>${t.wallet}</td>
-                </tr>
-              `;
-            });
-          } else {
-            printHTML += `<tr><td colspan="4" style="text-align: center;">Tidak ada transaksi</td></tr>`;
-          }
-          
-          printHTML += `
-                </tbody>
-              </table>
-            </div>
-            
-            <div class="summary">
-              <table>
-                <tr>
-                  <td class="label">Total Pengeluaran</td>
-                  <td class="amount">Rp ${totalAmount.toLocaleString('id-ID', {maximumFractionDigits: 0})}</td>
-                </tr>
-                <tr>
-                  <td class="label">Sisa Anggaran</td>
-                  <td class="amount">Rp ${(data.budget_amount - totalAmount).toLocaleString('id-ID', {maximumFractionDigits: 0})}</td>
-                </tr>
-              </table>
-            </div>
-          `;
-          
-          printWindow.document.getElementById('printContent').innerHTML = printHTML;
-          
-          // Tunggu sebentar lalu print
-          setTimeout(() => {
-            printWindow.print();
-          }, 500);
-        })
-        .catch(err => {
-          console.error('Error:', err);
-          printWindow.close();
-        });
-    } else {
-      // Jika tidak ada budgetId, gunakan konten yang sedang ditampilkan di modal
-      const currentContent = content.innerHTML;
-      printWindow.document.getElementById('printContent').innerHTML = currentContent;
-      
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
-    }
-  }, 100);
+  // ... (kode print yang lama)
 }
+*/
+
+document.addEventListener('DOMContentLoaded', function() {
+  const downloadBtn = document.getElementById('downloadBudgetPdfBtn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', function() {
+      const budgetId = document.getElementById('budgetDetailsModal').dataset.budgetId;
+      if (budgetId) {
+        window.location.href = `/export/budget-pdf/${budgetId}`;
+      } else {
+        alert('Tidak ada ID anggaran yang ditemukan.');
+      }
+    });
+  }
+});
 
 // Bar Chart - Anggaran vs Realisasi
 fetch('/api/budget-realization')

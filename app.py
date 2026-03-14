@@ -10,10 +10,11 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib.pagesizes import letter, landscape, portrait
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 import os
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -459,6 +460,132 @@ def budget_details(budget_id):
         } for t in transactions]
     }
     return jsonify(data)
+
+@app.route('/export/budget-pdf/<int:budget_id>')
+@login_required
+def export_budget_pdf(budget_id):
+    budget = Budget.query.get_or_404(budget_id)
+    if budget.user_id != current_user.id:
+        flash('Anda tidak memiliki akses')
+        return redirect(url_for('budgets'))
+    
+    from sqlalchemy import extract, func
+    transactions = Transaction.query.\
+        filter(Transaction.user_id == current_user.id,
+               Transaction.category_id == budget.category_id,
+               Transaction.type == 'expense',
+               extract('month', Transaction.date) == budget.month,
+               extract('year', Transaction.date) == budget.year).\
+        order_by(Transaction.date.asc()).all()
+    
+    total_spent = sum(t.amount for t in transactions)
+    remaining = budget.amount - total_spent
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=portrait(letter), 
+                            rightMargin=50, leftMargin=50, 
+                            topMargin=50, bottomMargin=50)
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=20,
+        alignment=1, # Center
+        textColor=colors.HexColor("#1e40af")
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'SubtitleStyle',
+        parent=styles['Normal'],
+        fontSize=12,
+        spaceAfter=12,
+        alignment=1, # Center
+        textColor=colors.grey
+    )
+    
+    section_title_style = ParagraphStyle(
+        'SectionTitle',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceBefore=15,
+        spaceAfter=10,
+        textColor=colors.HexColor("#1e40af"),
+        borderPadding=5,
+        borderWidth=0,
+        borderStyle=None
+    )
+
+    normal_style = styles['Normal']
+    
+    # Header
+    elements.append(Paragraph("Laporan Detail Anggaran", title_style))
+    elements.append(Paragraph(f"Periode: {budget.month}/{budget.year}", subtitle_style))
+    elements.append(Spacer(1, 0.2 * inch))
+    
+    # Summary Info
+    summary_data = [
+        [Paragraph("<b>Kategori</b>", normal_style), f": {budget.category.name}"],
+        [Paragraph("<b>Target Anggaran</b>", normal_style), f": Rp {budget.amount:,.0f}"],
+        [Paragraph("<b>Total Terpakai</b>", normal_style), f": Rp {total_spent:,.0f}"],
+        [Paragraph("<b>Sisa Anggaran</b>", normal_style), f": Rp {remaining:,.0f}"],
+        [Paragraph("<b>Status</b>", normal_style), f": {'Melebihi' if total_spent > budget.amount else 'Aman'}"]
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[1.5*inch, 4*inch])
+    summary_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TEXTCOLOR', (1,2), (1,2), colors.red if total_spent > budget.amount else colors.green),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('FONTSIZE', (0,0), (-1,-1), 11),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 0.3 * inch))
+    
+    # Transactions Table
+    elements.append(Paragraph("Rincian Transaksi", section_title_style))
+    
+    table_data = [['Tanggal', 'Deskripsi', 'Dompet', 'Jumlah']]
+    for t in transactions:
+        table_data.append([
+            t.date.strftime('%d/%m/%Y'),
+            Paragraph(t.description, normal_style),
+            t.wallet.name,
+            f"Rp {t.amount:,.0f}"
+        ])
+    
+    if len(transactions) == 0:
+        table_data.append(['-', 'Tidak ada transaksi', '-', '-'])
+
+    t_table = Table(table_data, colWidths=[1.0*inch, 2.5*inch, 1.2*inch, 1.3*inch])
+    t_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1e40af")),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('ALIGN', (0,0), (-1,0), 'CENTER'),
+        ('ALIGN', (3,1), (3,-1), 'RIGHT'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 10),
+        ('BOTTOMPADDING', (0,0), (-1,0), 10),
+        ('TOPPADDING', (0,0), (-1,0), 10),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.white])
+    ]))
+    elements.append(t_table)
+    
+    # Footer
+    elements.append(Spacer(1, 0.5 * inch))
+    footer_text = f"Dicetak pada: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+    elements.append(Paragraph(footer_text, ParagraphStyle('Footer', parent=styles['Italic'], alignment=2, fontSize=8)))
+
+    doc.build(elements)
+    buffer.seek(0)
+    filename = f"Laporan_Anggaran_{budget.category.name}_{budget.month}_{budget.year}.pdf"
+    return send_file(buffer, download_name=filename, as_attachment=True)
 
 @app.route('/reports')
 @login_required
