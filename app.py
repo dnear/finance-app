@@ -796,43 +796,145 @@ def export_pdf():
             query = query.filter(Transaction.date < ed)
         except ValueError:
             pass
-    transactions = query.order_by(Transaction.date.desc()).all()
+    
+    transactions = query.order_by(Transaction.date.asc()).all()
+    
+    # Calculate summary
+    total_income = sum(t.amount for t in transactions if t.type == 'income')
+    total_expense = sum(t.amount for t in transactions if t.type == 'expense')
+    net_flow = total_income - total_expense
+
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
+    doc = SimpleDocTemplate(buffer, pagesize=portrait(letter),
+                            rightMargin=40, leftMargin=40,
+                            topMargin=40, bottomMargin=40)
     elements = []
     
-    # Judul
     styles = getSampleStyleSheet()
-    elements.append(Paragraph("Laporan Keuangan", styles['Title']))
     
-    # Tabel
-    table_data = [['Tanggal', 'Deskripsi', 'Jumlah', 'Tipe', 'Kategori', 'Dompet']]
+    # Custom Styles
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        spaceAfter=10,
+        alignment=1,  # Center
+        textColor=colors.HexColor("#1e40af")
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'SubtitleStyle',
+        parent=styles['Normal'],
+        fontSize=11,
+        spaceAfter=20,
+        alignment=1,  # Center
+        textColor=colors.grey
+    )
+
+    header_style = ParagraphStyle(
+        'HeaderStyle',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceBefore=15,
+        spaceAfter=10,
+        textColor=colors.HexColor("#1e40af")
+    )
+
+    normal_style = styles['Normal']
+    
+    # 1. Title & Header
+    elements.append(Paragraph("LAPORAN KEUANGAN", title_style))
+    date_range = "Semua Waktu"
+    if start_date and end_date:
+        date_range = f"{start_date} s/d {end_date}"
+    elif start_date:
+        date_range = f"Mulai {start_date}"
+    elif end_date:
+        date_range = f"Hingga {end_date}"
+        
+    elements.append(Paragraph(f"Periode: {date_range}", subtitle_style))
+    elements.append(Paragraph(f"User: {current_user.username}", subtitle_style))
+    elements.append(Spacer(1, 0.2 * inch))
+
+    # 2. Summary Card
+    elements.append(Paragraph("Ringkasan", header_style))
+    summary_data = [
+        ["Total Pemasukan", f"Rp {total_income:,.0f}"],
+        ["Total Pengeluaran", f"Rp {total_expense:,.0f}"],
+        ["Arus Kas Bersih", f"Rp {net_flow:,.0f}"]
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[2.5*inch, 2.5*inch])
+    summary_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (0,-1), 'LEFT'),
+        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 11),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('TEXTCOLOR', (1,2), (1,2), colors.green if net_flow >= 0 else colors.red),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 0.4 * inch))
+
+    # 3. Transactions Table
+    elements.append(Paragraph("Rincian Transaksi", header_style))
+    
+    table_data = [['Tanggal', 'Deskripsi', 'Kategori', 'Tipe', 'Jumlah']]
     for t in transactions:
         table_data.append([
-            t.date.strftime('%Y-%m-%d'),
-            t.description,
-            f"Rp {t.amount:,.0f}",
-            'Pemasukan' if t.type=='income' else 'Pengeluaran',
+            t.date.strftime('%d/%m/%Y'),
+            Paragraph(t.description, normal_style),
             t.category.name,
-            t.wallet.name
+            'Masuk' if t.type == 'income' else 'Keluar',
+            f"Rp {t.amount:,.0f}"
         ])
     
-    table = Table(table_data)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+    if not transactions:
+        table_data.append(['-', 'Tidak ada transaksi ditemukan', '-', '-', '-'])
+
+    t_table = Table(table_data, colWidths=[1.0*inch, 2.4*inch, 1.2*inch, 0.8*inch, 1.5*inch])
+    t_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1e40af")),
         ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('ALIGN', (0,0), (-1,0), 'CENTER'),
+        ('ALIGN', (4,1), (4,-1), 'RIGHT'),
         ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
         ('FONTSIZE', (0,0), (-1,0), 10),
-        ('BOTTOMPADDING', (0,0), (-1,0), 12),
-        ('BACKGROUND', (0,1), (-1,-1), colors.beige),
-        ('GRID', (0,0), (-1,-1), 1, colors.black)
+        ('BOTTOMPADDING', (0,0), (-1,0), 10),
+        ('TOPPADDING', (0,0), (-1,0), 10),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
+        ('TEXTCOLOR', (3,1), (3,-1), colors.green), # Default column 3 color (Type)
     ]))
-    elements.append(table)
     
+    # Conditional coloring for type column
+    if transactions:
+        for i, t in enumerate(transactions, 1):
+            if t.type == 'expense':
+                t_table.setStyle(TableStyle([
+                    ('TEXTCOLOR', (3, i), (3, i), colors.red),
+                    ('TEXTCOLOR', (4, i), (4, i), colors.red)
+                ]))
+            else:
+                t_table.setStyle(TableStyle([
+                    ('TEXTCOLOR', (3, i), (3, i), colors.green),
+                    ('TEXTCOLOR', (4, i), (4, i), colors.green)
+                ]))
+
+    elements.append(t_table)
+    
+    # 4. Footer
+    elements.append(Spacer(1, 0.5 * inch))
+    footer_text = f"Dicetak pada: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+    elements.append(Paragraph(footer_text, ParagraphStyle('Footer', parent=styles['Italic'], alignment=2, fontSize=8, textColor=colors.grey)))
+
     doc.build(elements)
     buffer.seek(0)
-    return send_file(buffer, download_name='laporan.pdf', as_attachment=True)
+    
+    filename = f"Laporan_Keuangan_{current_user.username}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return send_file(buffer, download_name=filename, as_attachment=True)
 
 @app.route('/share/wallet', methods=['POST'])
 @login_required

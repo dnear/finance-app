@@ -14,10 +14,10 @@
         <div class="card">
             <div class="card-header bg-primary text-white">Export Laporan</div>
             <div class="card-body">
-                <a href="{{ url_for('export_excel') }}" class="btn btn-success w-100 mb-2">
+                <a href="{{ url_for('export_excel', start_date=request.args.get('start_date'), end_date=request.args.get('end_date')) }}" class="btn btn-success w-100 mb-2">
                     <i class="bi bi-file-excel"></i> Export Excel
                 </a>
-                <a href="{{ url_for('export_pdf') }}" class="btn btn-danger w-100">
+                <a href="{{ url_for('export_pdf', start_date=request.args.get('start_date'), end_date=request.args.get('end_date')) }}" class="btn btn-danger w-100">
                     <i class="bi bi-file-pdf"></i> Export PDF
                 </a>
             </div>
@@ -34,11 +34,11 @@
                     <div class="row">
                         <div class="col-md-4">
                             <label>Dari Tanggal</label>
-                            <input type="date" name="start_date" class="form-control">
+                            <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
                         </div>
                         <div class="col-md-4">
                             <label>Sampai Tanggal</label>
-                            <input type="date" name="end_date" class="form-control">
+                            <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
                         </div>
                         <div class="col-md-4">
                             <label>&nbsp;</label>
