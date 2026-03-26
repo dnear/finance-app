@@ -1,0 +1,10 @@
+bind = "0.0.0.0:5000"
+workers = 2
+threads = 2
+worker_class = "sync"
+worker_connections = 100
+timeout = 60
+keepalive = 5
+max_requests = 500
+max_requests_jitter = 50
+preload_app = True

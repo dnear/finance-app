@@ -52,6 +52,12 @@ class Transaction(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     category = db.relationship('Category')
 
+    __table_args__ = (
+        db.Index('idx_trans_user_date', 'user_id', 'date'),
+        db.Index('idx_trans_user_type', 'user_id', 'type'),
+        db.Index('idx_trans_user_cat', 'user_id', 'category_id'),
+    )
+
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     month = db.Column(db.Integer)

@@ -48,7 +48,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for t in transactions %}
+                    {% for t in transactions.items %}
                     <tr>
                         <td>{{ t.date.strftime('%d/%m/%Y %H:%M') }}</td>
                         <td>{{ t.description|truncate(30) }}</td>
@@ -70,7 +70,7 @@
 
         <!-- Mobile View (Card List) -->
         <div class="d-md-none">
-            {% for t in transactions %}
+            {% for t in transactions.items %}
             <div class="transaction-card-mobile">
                 <div class="d-flex justify-content-between align-items-start mb-1">
                     <div>
@@ -113,6 +113,57 @@
         </div>
     </div>
 </div>
+
+{% if transactions.pages > 1 %}
+<div class="d-flex align-items-center justify-content-between mt-4 mb-5 px-1">
+
+    <!-- Tombol Sebelumnya -->
+    {% if transactions.has_prev %}
+    <a href="?page={{ transactions.prev_num }}
+        {%- if request.args.get('category_id') %}&category_id={{ request.args.get('category_id') }}{% endif %}
+        {%- if request.args.get('start_date') %}&start_date={{ request.args.get('start_date') }}{% endif %}
+        {%- if request.args.get('end_date') %}&end_date={{ request.args.get('end_date') }}{% endif %}"
+        class="btn btn-outline-primary btn-sm px-3"
+        style="border-radius:20px;">
+        ‹ Sebelumnya
+    </a>
+    {% else %}
+    <button class="btn btn-outline-secondary btn-sm px-3"
+        style="border-radius:20px; opacity:0.4;" disabled>
+        ‹ Sebelumnya
+    </button>
+    {% endif %}
+
+    <!-- Info Halaman -->
+    <div class="text-center">
+        <span class="badge bg-primary px-3 py-2"
+            style="border-radius:20px; font-size:13px;">
+            {{ transactions.page }} / {{ transactions.pages }}
+        </span>
+        <div class="text-muted mt-1" style="font-size:11px;">
+            {{ transactions.total }} transaksi
+        </div>
+    </div>
+
+    <!-- Tombol Selanjutnya -->
+    {% if transactions.has_next %}
+    <a href="?page={{ transactions.next_num }}
+        {%- if request.args.get('category_id') %}&category_id={{ request.args.get('category_id') }}{% endif %}
+        {%- if request.args.get('start_date') %}&start_date={{ request.args.get('start_date') }}{% endif %}
+        {%- if request.args.get('end_date') %}&end_date={{ request.args.get('end_date') }}{% endif %}"
+        class="btn btn-primary btn-sm px-3"
+        style="border-radius:20px;">
+        Selanjutnya ›
+    </a>
+    {% else %}
+    <button class="btn btn-secondary btn-sm px-3"
+        style="border-radius:20px; opacity:0.4;" disabled>
+        Selanjutnya ›
+    </button>
+    {% endif %}
+
+</div>
+{% endif %}
 
 <!-- generate modals outside list to avoid nesting issues -->
 {% for t in transactions %}

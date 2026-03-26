@@ -137,3 +137,62 @@ function setLocalDatetimeInputs() {
         }
     });
 }
+
+// ===== PAGE LOADING INDICATOR =====
+(function() {
+    const loader = document.getElementById('page-loader');
+    const overlay = document.getElementById('submit-overlay');
+
+    // Show loading bar on page navigation
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript')) return;
+        if (link.getAttribute('data-bs-toggle')) return;
+        if (link.getAttribute('target') === '_blank') return;
+        if (link.hostname && link.hostname !== location.hostname) return;
+
+        // Show loading bar
+        loader.style.display = 'block';
+        loader.style.width = '0%';
+        setTimeout(() => { loader.style.width = '70%'; }, 50);
+        setTimeout(() => { loader.style.width = '90%'; }, 500);
+    });
+
+    // Show spinner on form submission
+    document.addEventListener('submit', function(e) {
+        const form = e.target;
+        // Skip search/filter forms (GET method)
+        if (form.method && form.method.toLowerCase() === 'get') return;
+        overlay.style.display = 'flex';
+        // Change text based on action
+        const submitBtn = form.querySelector('[type="submit"]');
+        if (submitBtn) {
+            const action = submitBtn.textContent.trim();
+            const msgEl = overlay.querySelector('.mt-2');
+            if (action.includes('Hapus') || action.includes('hapus')) {
+                msgEl.textContent = 'Menghapus...';
+            } else if (action.includes('Simpan') || action.includes('simpan')) {
+                msgEl.textContent = 'Menyimpan...';
+            } else {
+                msgEl.textContent = 'Memproses...';
+            }
+        }
+    });
+
+    // Hide everything when page is fully loaded
+    window.addEventListener('pageshow', function() {
+        loader.style.width = '100%';
+        setTimeout(() => {
+            loader.style.display = 'none';
+            loader.style.width = '0%';
+        }, 300);
+        overlay.style.display = 'none';
+    });
+
+    // Hide overlay if back button pressed
+    window.addEventListener('popstate', function() {
+        overlay.style.display = 'none';
+    });
+})();

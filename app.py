@@ -40,6 +40,19 @@ app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads', '
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 db.init_app(app)
+
+from sqlalchemy import event
+from sqlalchemy.pool import Pool
+
+@event.listens_for(Pool, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA cache_size=10000")
+    cursor.execute("PRAGMA temp_store=MEMORY")
+    cursor.close()
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -269,7 +282,9 @@ def transactions():
         except ValueError:
             pass
 
-    trans = query.order_by(Transaction.date.desc()).all()
+    page = request.args.get('page', 1, type=int)
+    trans = query.order_by(Transaction.date.desc()).paginate(
+        page=page, per_page=30, error_out=False)
     categories = Category.query.filter_by(user_id=current_user.id).all()
     wallets = Wallet.query.filter_by(user_id=current_user.id).all()
     # Tambahkan dompet bersama yang memiliki izin 'add'
