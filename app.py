@@ -4,6 +4,15 @@ from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
 from datetime import datetime
 from dotenv import load_dotenv
 
+# Use zoneinfo for Python 3.9+ (WIB timezone)
+try:
+    from zoneinfo import ZoneInfo
+    WIB = ZoneInfo('Asia/Jakarta')
+except ImportError:
+    # Fallback to pytz for older Python versions
+    import pytz
+    WIB = pytz.timezone('Asia/Jakarta')
+
 # load environment variables from .env file (if present)
 load_dotenv()
 from io import BytesIO
@@ -117,7 +126,7 @@ def logout():
 @login_required
 def dashboard():
     # Ambil total pemasukan dan pengeluaran bulan ini
-    now = datetime.now()
+    now = datetime.now(WIB).replace(tzinfo=None)
     transactions = Transaction.query.filter_by(user_id=current_user.id).all()
     
     # Hitung saldo total dari semua dompet milik sendiri
@@ -579,7 +588,7 @@ def export_budget_pdf(budget_id):
     
     # Footer
     elements.append(Spacer(1, 0.5 * inch))
-    footer_text = f"Dicetak pada: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+    footer_text = f"Dicetak pada: {datetime.now(WIB).strftime('%d/%m/%Y %H:%M:%S')}"
     elements.append(Paragraph(footer_text, ParagraphStyle('Footer', parent=styles['Italic'], alignment=2, fontSize=8)))
 
     doc.build(elements)
@@ -596,7 +605,7 @@ def reports():
 @login_required
 def chart_data():
     from sqlalchemy import func, extract
-    now = datetime.now()
+    now = datetime.now(WIB).replace(tzinfo=None)
     data = db.session.query(Category.name, func.sum(Transaction.amount)).\
            join(Transaction).\
            filter(Transaction.user_id == current_user.id,
@@ -610,7 +619,7 @@ def chart_data():
 @login_required
 def income_expense_data():
     from sqlalchemy import func, extract
-    now = datetime.now()
+    now = datetime.now(WIB).replace(tzinfo=None)
     
     # Get monthly income and expense totals
     income = db.session.query(func.sum(Transaction.amount)).\
@@ -635,7 +644,7 @@ def income_expense_data():
 @login_required
 def income_expense_line():
     from sqlalchemy import func, extract
-    now = datetime.now()
+    now = datetime.now(WIB).replace(tzinfo=None)
     labels = []
     incomes = []
     expenses = []
@@ -668,7 +677,7 @@ def income_expense_line():
 @login_required
 def budget_realization():
     from sqlalchemy import func, extract
-    now = datetime.now()
+    now = datetime.now(WIB).replace(tzinfo=None)
     budgets = Budget.query.filter_by(user_id=current_user.id, month=now.month, year=now.year).all()
     labels = []
     budget_vals = []
@@ -690,7 +699,7 @@ def budget_realization():
 @login_required
 def cashflow_data():
     from datetime import timedelta
-    now = datetime.now()
+    now = datetime.now(WIB).replace(tzinfo=None)
     start = now - timedelta(days=30)
     transactions = Transaction.query.filter(Transaction.user_id == current_user.id,
                                          Transaction.date >= start).order_by(Transaction.date).all()
@@ -927,7 +936,7 @@ def export_pdf():
     
     # 4. Footer
     elements.append(Spacer(1, 0.5 * inch))
-    footer_text = f"Dicetak pada: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+    footer_text = f"Dicetak pada: {datetime.now(WIB).strftime('%d/%m/%Y %H:%M:%S')}"
     elements.append(Paragraph(footer_text, ParagraphStyle('Footer', parent=styles['Italic'], alignment=2, fontSize=8, textColor=colors.grey)))
 
     doc.build(elements)

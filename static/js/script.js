@@ -57,6 +57,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
+    // Set local datetime inputs to browser timezone (WIB)
+    setLocalDatetimeInputs();
+
     // Rupiah Currency Formatting for Amount Inputs
     initializeRupiahFormatting();
 });
@@ -117,6 +120,20 @@ function initializeRupiahFormatting() {
     document.addEventListener('input', function(e) {
         if (e.target.matches('input[data-rupiah]')) {
             formatRupiah(e.target);
+        }
+    });
+}
+
+/**
+ * Set datetime-local inputs to browser local time (WIB)
+ */
+function setLocalDatetimeInputs() {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    const localISO = new Date(now - offset).toISOString().slice(0, 16);
+    document.querySelectorAll('input[type="datetime-local"]').forEach(function(input) {
+        if (!input.value) {
+            input.value = localISO;
         }
     });
 }
