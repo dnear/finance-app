@@ -27,6 +27,7 @@ from reportlab.lib.units import inch
 import os
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 app = Flask(__name__)
 # gunakan environment variable untuk secret key agar tidak tersimpan di kode
@@ -38,6 +39,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.absp
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads', 'profile_photos')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_PROFILE_IMAGE_DIMENSION = 720
+MAX_PROFILE_IMAGE_PIXELS = 20_000_000
+PROFILE_JPEG_QUALITY = 78
 
 db.init_app(app)
 
@@ -1102,29 +1108,82 @@ def upload_photo():
     if file.filename == '':
         flash('Tidak ada file yang dipilih')
         return redirect(url_for('profile'))
-    
-    if file and allowed_file(file.filename):
-        filename = secure_filename(f"user_{current_user.id}_{file.filename}")
+
+    if not allowed_file(file.filename):
+        flash('Format file tidak didukung. Gunakan JPG, PNG, atau GIF')
+        return redirect(url_for('profile'))
+
+    try:
+        filename = f"user_{current_user.id}.jpg"
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
-        
-        # Hapus foto lama jika ada
-        if current_user.photo and os.path.exists(os.path.join(app.root_path, 'static', current_user.photo)):
-            os.remove(os.path.join(app.root_path, 'static', current_user.photo))
-        
+        optimize_and_save_profile_image(file, file_path)
+
+        # Hapus foto lama jika ada dan berbeda dengan file baru
+        if current_user.photo:
+            old_photo_path = os.path.join(app.root_path, 'static', current_user.photo)
+            if os.path.exists(old_photo_path) and old_photo_path != file_path:
+                os.remove(old_photo_path)
+
         # Update database
         current_user.photo = f'uploads/profile_photos/{filename}'
         db.session.commit()
-        
+
         flash('Foto profil berhasil diubah')
-    else:
-        flash('Format file tidak didukung. Gunakan JPG, PNG, atau GIF')
-    
+    except ValueError as e:
+        flash(str(e))
+    except Exception:
+        flash('Gagal memproses foto. Silakan coba gambar lain.')
+
     return redirect(url_for('profile'))
 
 def allowed_file(filename):
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+
+
+def optimize_and_save_profile_image(file_storage, output_path):
+    try:
+        file_storage.stream.seek(0)
+        image = Image.open(file_storage.stream)
+        image.verify()
+    except (UnidentifiedImageError, OSError):
+        raise ValueError('File bukan gambar yang valid')
+
+    try:
+        file_storage.stream.seek(0)
+        image = Image.open(file_storage.stream)
+        image = ImageOps.exif_transpose(image)
+    except Exception:
+        raise ValueError('Gagal membaca data gambar')
+
+    width, height = image.size
+    if width <= 0 or height <= 0:
+        raise ValueError('Ukuran gambar tidak valid')
+    if width * height > MAX_PROFILE_IMAGE_PIXELS:
+        raise ValueError('Resolusi gambar terlalu besar')
+
+    if max(width, height) > MAX_PROFILE_IMAGE_DIMENSION:
+        image.thumbnail((MAX_PROFILE_IMAGE_DIMENSION, MAX_PROFILE_IMAGE_DIMENSION), Image.Resampling.LANCZOS)
+
+    if image.mode not in ('RGB', 'L'):
+        background = Image.new('RGB', image.size, (255, 255, 255))
+        if 'A' in image.getbands():
+            background.paste(image, mask=image.getchannel('A'))
+        else:
+            background.paste(image)
+        image = background
+    elif image.mode == 'L':
+        image = image.convert('RGB')
+
+    temp_output = f"{output_path}.tmp"
+    image.save(
+        temp_output,
+        format='JPEG',
+        quality=PROFILE_JPEG_QUALITY,
+        optimize=True,
+        progressive=True,
+        subsampling='4:2:0'
+    )
+    os.replace(temp_output, output_path)
 
 @app.route('/change_password', methods=['GET', 'POST'])
 @login_required

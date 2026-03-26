@@ -1,5 +1,7 @@
 // script.js
 document.addEventListener('DOMContentLoaded', function() {
+    initializeTheme();
+
     // Konfirmasi hapus dengan sweet alert style (opsional)
     const deleteLinks = document.querySelectorAll('.delete-confirm');
     deleteLinks.forEach(link => {
@@ -11,24 +13,32 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Tooltip Bootstrap
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
+    if (typeof bootstrap !== 'undefined') {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }
 
     // Auto hide alert setelah 5 detik
     setTimeout(function() {
         const alerts = document.querySelectorAll('.alert');
         alerts.forEach(alert => {
-            bootstrap.Alert.getOrCreateInstance(alert).close();
+            if (typeof bootstrap !== 'undefined') {
+                bootstrap.Alert.getOrCreateInstance(alert).close();
+            }
         });
     }, 5000);
 
     // Smooth scroll untuk anchor
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
+            const targetSelector = this.getAttribute('href');
+            if (!targetSelector || targetSelector === '#') return;
+            const target = document.querySelector(targetSelector);
+            if (!target) return;
             e.preventDefault();
-            document.querySelector(this.getAttribute('href')).scrollIntoView({
+            target.scrollIntoView({
                 behavior: 'smooth'
             });
         });
@@ -138,10 +148,58 @@ function setLocalDatetimeInputs() {
     });
 }
 
+function initializeTheme() {
+    const storageKey = 'finance-theme';
+    const root = document.documentElement;
+    const themeButtons = document.querySelectorAll('[data-theme-toggle]');
+    const metaTheme = document.getElementById('theme-color-meta');
+    const mediaQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+    const getSystemTheme = () => (mediaQuery && mediaQuery.matches ? 'dark' : 'light');
+
+    const setTheme = (theme) => {
+        root.setAttribute('data-theme', theme);
+        if (metaTheme) {
+            metaTheme.setAttribute('content', theme === 'dark' ? '#0f172a' : '#3b82f6');
+        }
+        themeButtons.forEach((btn) => {
+            const icon = btn.querySelector('i');
+            if (icon) {
+                icon.className = theme === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-stars-fill';
+            }
+            btn.setAttribute('aria-label', theme === 'dark' ? 'Gunakan mode terang' : 'Gunakan mode gelap');
+            btn.setAttribute('title', theme === 'dark' ? 'Mode terang' : 'Mode gelap');
+        });
+    };
+
+    const storedTheme = localStorage.getItem(storageKey);
+    setTheme(storedTheme || root.getAttribute('data-theme') || getSystemTheme());
+
+    themeButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const currentTheme = root.getAttribute('data-theme') || getSystemTheme();
+            const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            localStorage.setItem(storageKey, nextTheme);
+            setTheme(nextTheme);
+        });
+    });
+
+    if (mediaQuery && !storedTheme) {
+        const onSystemThemeChange = (e) => setTheme(e.matches ? 'dark' : 'light');
+        if (typeof mediaQuery.addEventListener === 'function') {
+            mediaQuery.addEventListener('change', onSystemThemeChange);
+        } else if (typeof mediaQuery.addListener === 'function') {
+            mediaQuery.addListener(onSystemThemeChange);
+        }
+    }
+}
+
 // ===== PAGE LOADING INDICATOR =====
 (function() {
     const loader = document.getElementById('page-loader');
     const overlay = document.getElementById('submit-overlay');
+
+    if (!loader && !overlay) return;
 
     // Show loading bar on page navigation
     document.addEventListener('click', function(e) {
@@ -154,10 +212,12 @@ function setLocalDatetimeInputs() {
         if (link.hostname && link.hostname !== location.hostname) return;
 
         // Show loading bar
-        loader.style.display = 'block';
-        loader.style.width = '0%';
-        setTimeout(() => { loader.style.width = '70%'; }, 50);
-        setTimeout(() => { loader.style.width = '90%'; }, 500);
+        if (loader) {
+            loader.style.display = 'block';
+            loader.style.width = '0%';
+            setTimeout(() => { loader.style.width = '70%'; }, 50);
+            setTimeout(() => { loader.style.width = '90%'; }, 500);
+        }
     });
 
     // Show spinner on form submission
@@ -165,6 +225,7 @@ function setLocalDatetimeInputs() {
         const form = e.target;
         // Skip search/filter forms (GET method)
         if (form.method && form.method.toLowerCase() === 'get') return;
+        if (!overlay) return;
         overlay.style.display = 'flex';
         // Change text based on action
         const submitBtn = form.querySelector('[type="submit"]');
@@ -183,16 +244,18 @@ function setLocalDatetimeInputs() {
 
     // Hide everything when page is fully loaded
     window.addEventListener('pageshow', function() {
-        loader.style.width = '100%';
-        setTimeout(() => {
-            loader.style.display = 'none';
-            loader.style.width = '0%';
-        }, 300);
-        overlay.style.display = 'none';
+        if (loader) {
+            loader.style.width = '100%';
+            setTimeout(() => {
+                loader.style.display = 'none';
+                loader.style.width = '0%';
+            }, 300);
+        }
+        if (overlay) overlay.style.display = 'none';
     });
 
     // Hide overlay if back button pressed
     window.addEventListener('popstate', function() {
-        overlay.style.display = 'none';
+        if (overlay) overlay.style.display = 'none';
     });
 })();
