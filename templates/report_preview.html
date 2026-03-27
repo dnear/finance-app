@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Preview Laporan{% endblock %}
+{% block content %}
+<div class="card report-preview-card">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <i class="bi bi-eye me-2"></i>Preview Laporan
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('transactions', category_id=filters.category_id, start_date=filters.start_date, end_date=filters.end_date) }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Kembali
+            </a>
+            <a href="{{ url_for('export_excel', category_id=filters.category_id, start_date=filters.start_date, end_date=filters.end_date) }}" class="btn btn-success btn-sm">
+                <i class="bi bi-file-excel"></i> Export Excel
+            </a>
+            <a href="{{ url_for('export_pdf', category_id=filters.category_id, start_date=filters.start_date, end_date=filters.end_date) }}" class="btn btn-danger btn-sm">
+                <i class="bi bi-file-pdf"></i> Export PDF
+            </a>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-4">
+                <div class="preview-summary-box">
+                    <div class="preview-summary-label">Total Pemasukan</div>
+                    <div class="preview-summary-value income">Rp {{ "{:,.0f}".format(total_income) }}</div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="preview-summary-box">
+                    <div class="preview-summary-label">Total Pengeluaran</div>
+                    <div class="preview-summary-value expense">Rp {{ "{:,.0f}".format(total_expense) }}</div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="preview-summary-box">
+                    <div class="preview-summary-label">Selisih</div>
+                    <div class="preview-summary-value {{ 'income' if net_total >= 0 else 'expense' }}">Rp {{ "{:,.0f}".format(net_total) }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="preview-filter-note mb-3">
+            <span class="me-3"><strong>Kategori:</strong> {{ filters.category_id or 'Semua' }}</span>
+            <span class="me-3"><strong>Mulai:</strong> {{ filters.start_date or '-' }}</span>
+            <span><strong>Sampai:</strong> {{ filters.end_date or '-' }}</span>
+        </div>
+
+        <div class="table-responsive preview-table-wrapper">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>Deskripsi</th>
+                        <th>Jumlah</th>
+                        <th>Kategori</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in transactions %}
+                    <tr>
+                        <td>{{ t.date.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ t.description or '-' }}</td>
+                        <td class="{{ 'income' if t.type == 'income' else 'expense' }}">
+                            {{ '+' if t.type == 'income' else '-' }}Rp {{ "{:,.0f}".format(t.amount) }}
+                        </td>
+                        <td>{{ t.category.name }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">Tidak ada transaksi untuk filter ini</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

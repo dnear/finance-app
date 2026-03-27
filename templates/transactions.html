@@ -4,13 +4,12 @@
 <div class="card">
     <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap">
         <span><i class="bi bi-list-ul me-2"></i> Daftar Transaksi</span>
-        <a href="{{ url_for('export_excel', category_id=category_filter, start_date=start_date, end_date=end_date) }}" class="btn btn-success btn-sm mt-2 mt-sm-0"><i class="bi bi-file-excel"></i> Export Excel</a>
     </div>
     <div class="card-body p-0">
         <!-- filter form -->
         <div class="p-3">
-            <form class="row g-2 align-items-end" method="get" action="{{ url_for('transactions') }}">
-                <div class="col-auto">
+            <form class="row g-2 align-items-end" method="get" action="{{ url_for('transactions') }}" id="transactionFilterForm">
+                <div class="col-12 col-sm-6 col-lg-auto">
                     <label class="form-label">Kategori</label>
                     <select name="category_id" class="form-select">
                         <option value="">Semua</option>
@@ -19,17 +18,22 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-auto">
+                <div class="col-6 col-lg-auto">
                     <label class="form-label">Mulai</label>
                     <input type="date" name="start_date" class="form-control" value="{{ start_date or '' }}">
                 </div>
-                <div class="col-auto">
+                <div class="col-6 col-lg-auto">
                     <label class="form-label">Sampai</label>
                     <input type="date" name="end_date" class="form-control" value="{{ end_date or '' }}">
                 </div>
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-primary">Filter</button>
-                    <a href="{{ url_for('transactions') }}" class="btn btn-secondary">Reset</a>
+                <div class="col-12 col-lg-auto">
+                    <div class="transaction-action-row d-flex flex-nowrap flex-sm-wrap gap-2 w-100">
+                        <button type="submit" class="btn btn-primary flex-fill flex-sm-grow-0">Filter</button>
+                        <a href="{{ url_for('transactions') }}" class="btn btn-secondary flex-fill flex-sm-grow-0">Reset</a>
+                        <button type="button" class="btn btn-outline-primary flex-fill flex-sm-grow-0" id="previewReportButton">
+                            <i class="bi bi-eye"></i> Preview Report
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -110,6 +114,92 @@
                 Belum ada transaksi
             </div>
             {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="report-preview-modal" id="reportPreviewModal" aria-hidden="true">
+    <div class="report-preview-backdrop" data-preview-close></div>
+    <div class="report-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="reportPreviewTitle">
+        <div class="report-preview-panel">
+            <div class="report-preview-header">
+                <div>
+                    <h5 class="mb-1" id="reportPreviewTitle"><i class="bi bi-eye me-2"></i>Preview Report</h5>
+                    <div class="report-preview-subtitle">Data transaksi sesuai filter aktif</div>
+                </div>
+                <button type="button" class="report-preview-close" id="closePreviewModal" aria-label="Close preview">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <div class="report-preview-body">
+                <div class="report-preview-loading" id="previewLoadingState">
+                    <div class="spinner-border text-primary" role="status" style="width: 2rem; height: 2rem;"></div>
+                    <div class="mt-2 text-muted">Memuat preview laporan...</div>
+                </div>
+
+                <div class="report-preview-content d-none" id="previewContentState">
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-md-4">
+                            <div class="preview-summary-box">
+                                <div class="preview-summary-label">Total Pemasukan</div>
+                                <div class="preview-summary-value income" id="previewTotalIncome">Rp 0</div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="preview-summary-box">
+                                <div class="preview-summary-label">Total Pengeluaran</div>
+                                <div class="preview-summary-value expense" id="previewTotalExpense">Rp 0</div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="preview-summary-box">
+                                <div class="preview-summary-label">Balance</div>
+                                <div class="preview-summary-value" id="previewBalance">Rp 0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="preview-chart-card" id="previewChartCard">
+                        <div class="preview-chart-title">Income vs Expense</div>
+                        <div class="preview-chart-bars" id="previewChartBars" aria-live="polite"></div>
+                    </div>
+
+                    <div class="table-responsive preview-table-wrapper">
+                        <table class="table table-hover align-middle mb-0 preview-report-table">
+                            <thead>
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Deskripsi</th>
+                                    <th>Jumlah</th>
+                                    <th>Kategori</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="report-preview-empty d-none" id="previewEmptyState">
+                    <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                    Tidak ada transaksi untuk filter ini
+                </div>
+
+                <div class="report-preview-error d-none" id="previewErrorState">
+                    <i class="bi bi-exclamation-circle fs-2 d-block mb-2"></i>
+                    Gagal memuat preview laporan
+                </div>
+            </div>
+
+            <div class="report-preview-footer">
+                <a href="{{ url_for('export_excel') }}" class="btn btn-success" id="previewExportExcel">
+                    <i class="bi bi-file-excel"></i> Export Excel
+                </a>
+                <a href="{{ url_for('export_pdf') }}" class="btn btn-danger" id="previewExportPdf">
+                    <i class="bi bi-file-pdf"></i> Export PDF
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -229,4 +319,203 @@
     </div>
 </div>
 {% endfor %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    (function () {
+        const previewButton = document.getElementById('previewReportButton');
+        const modal = document.getElementById('reportPreviewModal');
+        const closeButton = document.getElementById('closePreviewModal');
+        const closeTargets = modal ? modal.querySelectorAll('[data-preview-close]') : [];
+        const filterForm = document.getElementById('transactionFilterForm');
+        const loadingState = document.getElementById('previewLoadingState');
+        const contentState = document.getElementById('previewContentState');
+        const emptyState = document.getElementById('previewEmptyState');
+        const errorState = document.getElementById('previewErrorState');
+        const tableBody = document.getElementById('previewTableBody');
+        const totalIncome = document.getElementById('previewTotalIncome');
+        const totalExpense = document.getElementById('previewTotalExpense');
+        const balance = document.getElementById('previewBalance');
+        const chartBars = document.getElementById('previewChartBars');
+        const exportExcel = document.getElementById('previewExportExcel');
+        const exportPdf = document.getElementById('previewExportPdf');
+
+        if (!previewButton || !modal || !filterForm) {
+            return;
+        }
+
+        function formatCurrency(value, type) {
+            const formatted = new Intl.NumberFormat('id-ID').format(Math.abs(value || 0));
+            const prefix = type === 'income' ? '+' : type === 'expense' ? '-' : '';
+            return prefix + 'Rp ' + formatted;
+        }
+
+        function setSummaryValue(element, value) {
+            element.textContent = 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.abs(value || 0));
+            element.classList.remove('income', 'expense');
+            if (value > 0) {
+                element.classList.add('income');
+            } else if (value < 0) {
+                element.classList.add('expense');
+            }
+        }
+
+        function renderChart(summary) {
+            if (!chartBars) {
+                return;
+            }
+
+            const incomeValue = Math.max(Number(summary.total_income) || 0, 0);
+            const expenseValue = Math.max(Number(summary.total_expense) || 0, 0);
+            const maxValue = Math.max(incomeValue, expenseValue, 1);
+            const rows = [
+                {
+                    key: 'income',
+                    label: 'Income',
+                    value: incomeValue,
+                    width: Math.max((incomeValue / maxValue) * 100, incomeValue > 0 ? 18 : 0)
+                },
+                {
+                    key: 'expense',
+                    label: 'Expense',
+                    value: expenseValue,
+                    width: Math.max((expenseValue / maxValue) * 100, expenseValue > 0 ? 18 : 0)
+                }
+            ];
+
+            chartBars.innerHTML = rows.map(function (row) {
+                const formattedValue = 'Rp ' + new Intl.NumberFormat('id-ID').format(row.value);
+
+                return `
+                    <div class="preview-chart-row">
+                        <div class="preview-chart-meta">
+                            <span class="preview-chart-label">${row.label}</span>
+                            <span class="preview-chart-value">${formattedValue}</span>
+                        </div>
+                        <div class="preview-chart-track" role="img" aria-label="${row.label} ${formattedValue}">
+                            ${row.value > 0 ? `<div class="preview-chart-bar ${row.key}" style="width:${row.width}%">
+                                <span>${row.label}</span>
+                                <span>${formattedValue}</span>
+                            </div>` : '<p class="preview-chart-empty">Rp 0</p>'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function setState(state) {
+            loadingState.classList.toggle('d-none', state !== 'loading');
+            contentState.classList.toggle('d-none', state !== 'content');
+            emptyState.classList.toggle('d-none', state !== 'empty');
+            errorState.classList.toggle('d-none', state !== 'error');
+        }
+
+        function openModal() {
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+        }
+
+        function buildQueryString() {
+            const formData = new FormData(filterForm);
+            const params = new URLSearchParams();
+
+            for (const [key, value] of formData.entries()) {
+                if (value) {
+                    params.append(key, value);
+                }
+            }
+
+            return params;
+        }
+
+        const exportExcelBaseUrl = "{{ url_for('export_excel') }}";
+        const exportPdfBaseUrl = "{{ url_for('export_pdf') }}";
+        const previewBaseUrl = "{{ url_for('report_preview') }}";
+
+        function updateExportLinks(params) {
+            const queryString = params.toString();
+            exportExcel.href = exportExcelBaseUrl + (queryString ? '?' + queryString : '');
+            exportPdf.href = exportPdfBaseUrl + (queryString ? '?' + queryString : '');
+        }
+
+        function renderRows(items) {
+            tableBody.innerHTML = items.map(function (item) {
+                return `
+                    <tr>
+                        <td>${item.date}</td>
+                        <td>${item.description}</td>
+                        <td class="${item.type === 'income' ? 'income' : 'expense'}">${formatCurrency(item.amount, item.type)}</td>
+                        <td>${item.category}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function resetPreviewContent() {
+            tableBody.innerHTML = '';
+            if (chartBars) {
+                chartBars.innerHTML = '';
+            }
+        }
+
+        async function loadPreview() {
+            openModal();
+            setState('loading');
+            resetPreviewContent();
+
+            const params = buildQueryString();
+            params.set('format', 'json');
+            updateExportLinks(buildQueryString());
+
+            try {
+                const response = await fetch(previewBaseUrl + '?' + params.toString(), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Preview request failed');
+                }
+
+                const data = await response.json();
+                setSummaryValue(totalIncome, data.summary.total_income);
+                setSummaryValue(totalExpense, -Math.abs(data.summary.total_expense));
+                setSummaryValue(balance, data.summary.balance);
+                renderChart(data.summary);
+
+                if (data.transactions.length) {
+                    renderRows(data.transactions);
+                    setState('content');
+                } else {
+                    setState('empty');
+                }
+            } catch (error) {
+                resetPreviewContent();
+                setState('error');
+            }
+        }
+
+        previewButton.addEventListener('click', loadPreview);
+        closeButton.addEventListener('click', closeModal);
+        closeTargets.forEach(function (element) {
+            element.addEventListener('click', closeModal);
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+                closeModal();
+            }
+        });
+    })();
+</script>
 {% endblock %}

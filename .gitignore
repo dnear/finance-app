@@ -8,6 +8,7 @@ venv/
 .venv/
 
 # Database
+instance/
 instance/database.db
 instance/database.db-shm
 instance/database.db-wal

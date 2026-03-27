@@ -266,6 +266,37 @@ def delete_wallet(id):
     flash('Dompet dihapus')
     return redirect(url_for('wallets'))
 
+
+def get_filtered_transactions(user_id, filters):
+    category_filter = filters.get('category_id')
+    start_date = filters.get('start_date')
+    end_date = filters.get('end_date')
+
+    query = Transaction.query.filter_by(user_id=user_id)
+
+    if category_filter:
+        try:
+            query = query.filter_by(category_id=int(category_filter))
+        except (TypeError, ValueError):
+            pass
+
+    if start_date:
+        try:
+            sd = datetime.strptime(start_date, '%Y-%m-%d')
+            query = query.filter(Transaction.date >= sd)
+        except ValueError:
+            pass
+
+    if end_date:
+        try:
+            from datetime import timedelta
+            ed = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(Transaction.date < ed)
+        except ValueError:
+            pass
+
+    return query
+
 @app.route('/transactions')
 @login_required
 def transactions():
@@ -274,24 +305,13 @@ def transactions():
     start_date = request.args.get('start_date')  # expected YYYY-MM-DD
     end_date = request.args.get('end_date')      # expected YYYY-MM-DD
 
-    # build base query
-    query = Transaction.query.filter_by(user_id=current_user.id)
-    if category_filter:
-        query = query.filter_by(category_id=category_filter)
-    if start_date:
-        try:
-            sd = datetime.strptime(start_date, '%Y-%m-%d')
-            query = query.filter(Transaction.date >= sd)
-        except ValueError:
-            pass
-    if end_date:
-        try:
-            from datetime import timedelta
-            # include all transactions on end_date by filtering strictly less than next day
-            ed = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
-            query = query.filter(Transaction.date < ed)
-        except ValueError:
-            pass
+    filters = {
+        'category_id': category_filter,
+        'start_date': start_date,
+        'end_date': end_date,
+    }
+
+    query = get_filtered_transactions(current_user.id, filters)
 
     page = request.args.get('page', 1, type=int)
     trans = query.order_by(Transaction.date.desc()).paginate(
@@ -304,6 +324,49 @@ def transactions():
     all_wallets = wallets + shared_wallet_objects
     return render_template('transactions.html', transactions=trans, categories=categories, wallets=all_wallets,
                            category_filter=category_filter, start_date=start_date, end_date=end_date)
+
+
+@app.route('/report/preview')
+@login_required
+def report_preview():
+    filters = {
+        'category_id': request.args.get('category_id', type=int),
+        'start_date': request.args.get('start_date'),
+        'end_date': request.args.get('end_date'),
+    }
+
+    transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.desc()).all()
+    total_income = sum(t.amount for t in transactions if t.type == 'income')
+    total_expense = sum(t.amount for t in transactions if t.type == 'expense')
+    net_total = total_income - total_expense
+
+    if request.args.get('format') == 'json':
+        return jsonify({
+            'transactions': [
+                {
+                    'date': t.date.strftime('%d/%m/%Y %H:%M'),
+                    'description': t.description or '-',
+                    'amount': float(t.amount),
+                    'type': t.type,
+                    'category': t.category.name if t.category else '-',
+                }
+                for t in transactions
+            ],
+            'summary': {
+                'total_income': float(total_income),
+                'total_expense': float(total_expense),
+                'balance': float(net_total),
+            }
+        })
+
+    return render_template(
+        'report_preview.html',
+        transactions=transactions,
+        filters=filters,
+        total_income=total_income,
+        total_expense=total_expense,
+        net_total=net_total,
+    )
 
 @app.route('/transaction/add', methods=['POST'])
 @login_required
@@ -744,27 +807,12 @@ def cashflow_data():
 @app.route('/export/excel')
 @login_required
 def export_excel():
-    # apply same filters if provided
-    category_filter = request.args.get('category_id', type=int)
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    query = Transaction.query.filter_by(user_id=current_user.id)
-    if category_filter:
-        query = query.filter_by(category_id=category_filter)
-    if start_date:
-        try:
-            sd = datetime.strptime(start_date, '%Y-%m-%d')
-            query = query.filter(Transaction.date >= sd)
-        except ValueError:
-            pass
-    if end_date:
-        try:
-            from datetime import timedelta
-            ed = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
-            query = query.filter(Transaction.date < ed)
-        except ValueError:
-            pass
-    transactions = query.order_by(Transaction.date.desc()).all()
+    filters = {
+        'category_id': request.args.get('category_id', type=int),
+        'start_date': request.args.get('start_date'),
+        'end_date': request.args.get('end_date'),
+    }
+    transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.desc()).all()
     
     # Create a new workbook and select the active sheet
     wb = Workbook()
@@ -811,28 +859,15 @@ def export_excel():
 @app.route('/export/pdf')
 @login_required
 def export_pdf():
-    # apply same filters if provided
-    category_filter = request.args.get('category_id', type=int)
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    query = Transaction.query.filter_by(user_id=current_user.id)
-    if category_filter:
-        query = query.filter_by(category_id=category_filter)
-    if start_date:
-        try:
-            sd = datetime.strptime(start_date, '%Y-%m-%d')
-            query = query.filter(Transaction.date >= sd)
-        except ValueError:
-            pass
-    if end_date:
-        try:
-            from datetime import timedelta
-            ed = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
-            query = query.filter(Transaction.date < ed)
-        except ValueError:
-            pass
-    
-    transactions = query.order_by(Transaction.date.asc()).all()
+    filters = {
+        'category_id': request.args.get('category_id', type=int),
+        'start_date': request.args.get('start_date'),
+        'end_date': request.args.get('end_date'),
+    }
+    start_date = filters['start_date']
+    end_date = filters['end_date']
+
+    transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.asc()).all()
     
     # Calculate summary
     total_income = sum(t.amount for t in transactions if t.type == 'income')
