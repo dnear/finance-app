@@ -37,7 +37,7 @@ from datetime import timedelta
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads', 'profile_photos')
+app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -76,10 +76,15 @@ def inject_categories_wallets():
             shared_wallets = SharedWallet.query.filter_by(shared_with_id=current_user.id, permission='add').all()
             shared_wallet_objects = [sw.wallet for sw in shared_wallets]
             all_wallets = wallets + shared_wallet_objects
-            return dict(categories=categories, wallets=all_wallets, datetime=datetime)
+            return dict(
+                categories=categories,
+                wallets=all_wallets,
+                datetime=datetime,
+                profile_photo_url=get_profile_photo_url(current_user.photo)
+            )
     except Exception:
         pass
-    return dict(categories=[], wallets=[], datetime=datetime)
+    return dict(categories=[], wallets=[], datetime=datetime, profile_photo_url=None)
 
 # Buat direktori instance jika belum ada
 os.makedirs(os.path.join(app.root_path, 'instance'), exist_ok=True)
@@ -1110,22 +1115,21 @@ def upload_photo():
         return redirect(url_for('profile'))
 
     if not allowed_file(file.filename):
-        flash('Format file tidak didukung. Gunakan JPG, PNG, atau GIF')
+        flash('Format file tidak didukung. Gunakan JPG, PNG, GIF, atau WEBP')
         return redirect(url_for('profile'))
 
     try:
-        filename = f"user_{current_user.id}.jpg"
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        optimize_and_save_profile_image(file, file_path)
+        new_relative_path = optimize_and_save_profile_image(file, current_user.id)
 
         # Hapus foto lama jika ada dan berbeda dengan file baru
         if current_user.photo:
-            old_photo_path = os.path.join(app.root_path, 'static', current_user.photo)
-            if os.path.exists(old_photo_path) and old_photo_path != file_path:
+            old_photo_path = safe_static_file_path(current_user.photo)
+            new_photo_path = safe_static_file_path(new_relative_path)
+            if old_photo_path and os.path.exists(old_photo_path) and old_photo_path != new_photo_path:
                 os.remove(old_photo_path)
 
         # Update database
-        current_user.photo = f'uploads/profile_photos/{filename}'
+        current_user.photo = new_relative_path
         db.session.commit()
 
         flash('Foto profil berhasil diubah')
@@ -1140,7 +1144,42 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
-def optimize_and_save_profile_image(file_storage, output_path):
+def safe_static_file_path(relative_path):
+    if not relative_path:
+        return None
+
+    normalized = relative_path.replace('\\', '/').lstrip('/')
+    if normalized.startswith('static/'):
+        normalized = normalized[len('static/'):]
+
+    static_root = os.path.abspath(os.path.join(app.root_path, 'static'))
+    full_path = os.path.abspath(os.path.join(static_root, normalized))
+    if not full_path.startswith(static_root + os.sep) and full_path != static_root:
+        return None
+    return full_path
+
+
+def get_profile_photo_url(relative_path):
+    file_path = safe_static_file_path(relative_path)
+    if not file_path or not os.path.exists(file_path):
+        return None
+
+    normalized = relative_path.replace('\\', '/').lstrip('/')
+    if normalized.startswith('static/'):
+        normalized = normalized[len('static/'):]
+    return url_for('static', filename=normalized)
+
+
+def image_has_transparency(image):
+    if image.mode in ('RGBA', 'LA'):
+        alpha = image.getchannel('A')
+        return alpha.getextrema()[0] < 255
+    if image.mode == 'P':
+        return 'transparency' in image.info
+    return False
+
+
+def optimize_and_save_profile_image(file_storage, user_id):
     try:
         file_storage.stream.seek(0)
         image = Image.open(file_storage.stream)
@@ -1164,17 +1203,30 @@ def optimize_and_save_profile_image(file_storage, output_path):
     if max(width, height) > MAX_PROFILE_IMAGE_DIMENSION:
         image.thumbnail((MAX_PROFILE_IMAGE_DIMENSION, MAX_PROFILE_IMAGE_DIMENSION), Image.Resampling.LANCZOS)
 
+    original_ext = file_storage.filename.rsplit('.', 1)[1].lower()
+    keep_png = (original_ext == 'png' and image_has_transparency(image))
+
+    if keep_png:
+        filename = f"user_{user_id}.png"
+        output_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        temp_output = f"{output_path}.tmp"
+
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+
+        image.save(temp_output, format='PNG', optimize=True)
+        os.replace(temp_output, output_path)
+        return f'uploads/{filename}'
+
+    filename = f"user_{user_id}.jpg"
+    output_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    temp_output = f"{output_path}.tmp"
+
     if image.mode not in ('RGB', 'L'):
-        background = Image.new('RGB', image.size, (255, 255, 255))
-        if 'A' in image.getbands():
-            background.paste(image, mask=image.getchannel('A'))
-        else:
-            background.paste(image)
-        image = background
+        image = image.convert('RGB')
     elif image.mode == 'L':
         image = image.convert('RGB')
 
-    temp_output = f"{output_path}.tmp"
     image.save(
         temp_output,
         format='JPEG',
@@ -1184,6 +1236,7 @@ def optimize_and_save_profile_image(file_storage, output_path):
         subsampling='4:2:0'
     )
     os.replace(temp_output, output_path)
+    return f'uploads/{filename}'
 
 @app.route('/change_password', methods=['GET', 'POST'])
 @login_required
