@@ -65,12 +65,16 @@ PROFILE_JPEG_QUALITY = 78
 db.init_app(app)
 
 from sqlalchemy import event
-from sqlalchemy.pool import Pool
+from sqlalchemy.engine import Engine
+import sqlite3
 
-@event.listens_for(Pool, "connect")
+@event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
+    if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite:///') or not isinstance(dbapi_connection, sqlite3.Connection):
+        return
+
     cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA journal_mode=DELETE;")
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.execute("PRAGMA cache_size=10000")
     cursor.execute("PRAGMA temp_store=MEMORY")
