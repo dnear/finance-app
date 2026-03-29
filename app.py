@@ -3,6 +3,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
 from datetime import datetime
 from dotenv import load_dotenv
+import os
 
 # Use zoneinfo for Python 3.9+ (WIB timezone)
 try:
@@ -24,7 +25,6 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-import os
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -35,7 +35,24 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'kunci-rahasia-ubah-seka
 # durasi cookie untuk fitur "ingat saya" (opsional, default 365 hari)
 from datetime import timedelta
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'database.db')
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+
+def resolve_database_path():
+    db_path = os.environ.get('DB_PATH', 'dev.db').strip()
+    if not db_path:
+        db_path = 'dev.db'
+
+    if not os.path.isabs(db_path):
+        db_path = os.path.join(BASE_DIR, db_path)
+
+    return os.path.abspath(db_path)
+
+
+db_path = resolve_database_path()
+
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path.replace(os.sep, '/')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
