@@ -269,14 +269,22 @@ def delete_wallet(id):
 
 def get_filtered_transactions(user_id, filters):
     category_filter = filters.get('category_id')
+    wallet_filter = filters.get('wallet_id')
     start_date = filters.get('start_date')
     end_date = filters.get('end_date')
+    search = filters.get('search')
 
     query = Transaction.query.filter_by(user_id=user_id)
 
     if category_filter:
         try:
             query = query.filter_by(category_id=int(category_filter))
+        except (TypeError, ValueError):
+            pass
+
+    if wallet_filter:
+        try:
+            query = query.filter(Transaction.wallet_id == int(wallet_filter))
         except (TypeError, ValueError):
             pass
 
@@ -295,6 +303,11 @@ def get_filtered_transactions(user_id, filters):
         except ValueError:
             pass
 
+    if search:
+        search = search.strip()
+        if search:
+            query = query.filter(Transaction.description.ilike(f'%{search}%'))
+
     return query
 
 @app.route('/transactions')
@@ -302,13 +315,17 @@ def get_filtered_transactions(user_id, filters):
 def transactions():
     # filter parameters
     category_filter = request.args.get('category_id', type=int)
+    wallet_filter = request.args.get('wallet_id', type=int)
     start_date = request.args.get('start_date')  # expected YYYY-MM-DD
     end_date = request.args.get('end_date')      # expected YYYY-MM-DD
+    search = request.args.get('search', '')
 
     filters = {
         'category_id': category_filter,
+        'wallet_id': wallet_filter,
         'start_date': start_date,
         'end_date': end_date,
+        'search': search,
     }
 
     query = get_filtered_transactions(current_user.id, filters)
@@ -323,7 +340,8 @@ def transactions():
     shared_wallet_objects = [sw.wallet for sw in shared_wallets]
     all_wallets = wallets + shared_wallet_objects
     return render_template('transactions.html', transactions=trans, categories=categories, wallets=all_wallets,
-                           category_filter=category_filter, start_date=start_date, end_date=end_date)
+                           category_filter=category_filter, wallet_filter=wallet_filter,
+                           start_date=start_date, end_date=end_date, search=search)
 
 
 @app.route('/report/preview')
@@ -331,8 +349,10 @@ def transactions():
 def report_preview():
     filters = {
         'category_id': request.args.get('category_id', type=int),
+        'wallet_id': request.args.get('wallet_id', type=int),
         'start_date': request.args.get('start_date'),
         'end_date': request.args.get('end_date'),
+        'search': request.args.get('search', ''),
     }
 
     transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.desc()).all()
@@ -809,8 +829,10 @@ def cashflow_data():
 def export_excel():
     filters = {
         'category_id': request.args.get('category_id', type=int),
+        'wallet_id': request.args.get('wallet_id', type=int),
         'start_date': request.args.get('start_date'),
         'end_date': request.args.get('end_date'),
+        'search': request.args.get('search', ''),
     }
     transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.desc()).all()
     
@@ -861,8 +883,10 @@ def export_excel():
 def export_pdf():
     filters = {
         'category_id': request.args.get('category_id', type=int),
+        'wallet_id': request.args.get('wallet_id', type=int),
         'start_date': request.args.get('start_date'),
         'end_date': request.args.get('end_date'),
+        'search': request.args.get('search', ''),
     }
     start_date = filters['start_date']
     end_date = filters['end_date']

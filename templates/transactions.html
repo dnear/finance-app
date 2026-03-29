@@ -10,6 +10,15 @@
         <div class="p-3">
             <form class="row g-2 align-items-end" method="get" action="{{ url_for('transactions') }}" id="transactionFilterForm">
                 <div class="col-12 col-sm-6 col-lg-auto">
+                    <label class="form-label">Dompet</label>
+                    <select name="wallet_id" class="form-select">
+                        <option value="">Semua</option>
+                        {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}" {% if wallet_filter == wallet.id %}selected{% endif %}>{{ wallet.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-auto">
                     <label class="form-label">Kategori</label>
                     <select name="category_id" class="form-select">
                         <option value="">Semua</option>
@@ -25,6 +34,10 @@
                 <div class="col-6 col-lg-auto">
                     <label class="form-label">Sampai</label>
                     <input type="date" name="end_date" class="form-control" value="{{ end_date or '' }}">
+                </div>
+                <div class="col-12 col-lg-auto flex-grow-1">
+                    <label class="form-label">Deskripsi</label>
+                    <input type="text" name="search" class="form-control" value="{{ request.args.get('search', '') }}" placeholder="Cari deskripsi...">
                 </div>
                 <div class="col-12 col-lg-auto">
                     <div class="transaction-action-row d-flex flex-nowrap flex-sm-wrap gap-2 w-100">
@@ -210,9 +223,11 @@
     <!-- Tombol Sebelumnya -->
     {% if transactions.has_prev %}
     <a href="?page={{ transactions.prev_num }}
+        {%- if request.args.get('wallet_id') %}&wallet_id={{ request.args.get('wallet_id') }}{% endif %}
         {%- if request.args.get('category_id') %}&category_id={{ request.args.get('category_id') }}{% endif %}
         {%- if request.args.get('start_date') %}&start_date={{ request.args.get('start_date') }}{% endif %}
-        {%- if request.args.get('end_date') %}&end_date={{ request.args.get('end_date') }}{% endif %}"
+        {%- if request.args.get('end_date') %}&end_date={{ request.args.get('end_date') }}{% endif %}
+        {%- if request.args.get('search') %}&search={{ request.args.get('search') }}{% endif %}"
         class="btn btn-outline-primary btn-sm px-3"
         style="border-radius:20px;">
         ‹ Sebelumnya
@@ -238,9 +253,11 @@
     <!-- Tombol Selanjutnya -->
     {% if transactions.has_next %}
     <a href="?page={{ transactions.next_num }}
+        {%- if request.args.get('wallet_id') %}&wallet_id={{ request.args.get('wallet_id') }}{% endif %}
         {%- if request.args.get('category_id') %}&category_id={{ request.args.get('category_id') }}{% endif %}
         {%- if request.args.get('start_date') %}&start_date={{ request.args.get('start_date') }}{% endif %}
-        {%- if request.args.get('end_date') %}&end_date={{ request.args.get('end_date') }}{% endif %}"
+        {%- if request.args.get('end_date') %}&end_date={{ request.args.get('end_date') }}{% endif %}
+        {%- if request.args.get('search') %}&search={{ request.args.get('search') }}{% endif %}"
         class="btn btn-primary btn-sm px-3"
         style="border-radius:20px;">
         Selanjutnya ›
