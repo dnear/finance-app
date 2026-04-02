@@ -63,7 +63,7 @@
                         <tbody>
                             {% for t in current_user.transactions[-5:]|reverse %}
                             <tr>
-                                <td>{{ t.date.strftime('%d/%m') }}</td>
+                                <td>{{ to_wib(t.date).strftime('%d/%m %H:%M') }}</td>
                                 <td>{{ t.description|truncate(20) }}</td>
                                 <td class="{{ 'income' if t.type=='income' else 'expense' }}">Rp {{ "{:,.0f}".format(t.amount) }}</td>
                                 <td><span class="badge {{ 'bg-success' if t.type=='income' else 'bg-danger' }}">{{ 'Pemasukan' if t.type=='income' else 'Pengeluaran' }}</span></td>

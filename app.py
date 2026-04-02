@@ -2,17 +2,10 @@ from flask import Flask, render_template, redirect, url_for, request, flash, jso
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from dotenv import load_dotenv
 import os
-
-# Use zoneinfo for Python 3.9+ (WIB timezone)
-try:
-    from zoneinfo import ZoneInfo
-    WIB = ZoneInfo('Asia/Jakarta')
-except ImportError:
-    # Fallback to pytz for older Python versions
-    import pytz
-    WIB = pytz.timezone('Asia/Jakarta')
+from utils.datetime_utils import WIB, now_wib, to_wib
 
 # load environment variables from .env file (if present)
 load_dotenv()
@@ -37,6 +30,61 @@ from datetime import timedelta
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+DATETIME_LOCAL_FORMAT = '%Y-%m-%dT%H:%M'
+DATE_INPUT_FORMAT = '%Y-%m-%d'
+
+
+def normalize_wib_storage(dt):
+    converted = to_wib(dt)
+    return converted.replace(tzinfo=None) if converted else None
+
+
+def parse_positive_amount(raw_value, field_name='Nominal', allow_zero=False):
+    if raw_value is None or str(raw_value).strip() == '':
+        raise ValueError(f'{field_name} tidak valid')
+
+    normalized = str(raw_value).strip().replace(',', '')
+
+    try:
+        amount = float(Decimal(normalized))
+    except (InvalidOperation, ValueError):
+        raise ValueError(f'{field_name} tidak valid')
+
+    minimum = 0 if allow_zero else 0
+    if allow_zero:
+        if amount < 0:
+            raise ValueError(f'{field_name} tidak valid')
+    elif amount <= minimum:
+        raise ValueError(f'{field_name} tidak valid')
+
+    return amount
+
+
+def parse_transaction_datetime(raw_value):
+    if not raw_value or not str(raw_value).strip():
+        raise ValueError('Tanggal tidak boleh kosong')
+
+    try:
+        parsed = datetime.strptime(raw_value.strip(), DATETIME_LOCAL_FORMAT)
+    except ValueError:
+        raise ValueError('Format tanggal tidak valid')
+
+    return normalize_wib_storage(parsed)
+
+
+def parse_date_filter(raw_value, end_of_day=False):
+    if not raw_value or not str(raw_value).strip():
+        raise ValueError('Tanggal tidak boleh kosong')
+
+    try:
+        parsed = datetime.strptime(raw_value.strip(), DATE_INPUT_FORMAT)
+    except ValueError:
+        raise ValueError('Format tanggal tidak valid')
+
+    if end_of_day:
+        parsed = parsed + timedelta(days=1)
+
+    return normalize_wib_storage(parsed)
 
 
 def resolve_database_path():
@@ -101,11 +149,13 @@ def inject_categories_wallets():
                 categories=categories,
                 wallets=all_wallets,
                 datetime=datetime,
+                to_wib=to_wib,
+                now_wib=now_wib,
                 profile_photo_url=get_profile_photo_url(current_user.photo)
             )
     except Exception:
         pass
-    return dict(categories=[], wallets=[], datetime=datetime, profile_photo_url=None)
+    return dict(categories=[], wallets=[], datetime=datetime, to_wib=to_wib, now_wib=now_wib, profile_photo_url=None)
 
 # Buat direktori instance jika belum ada
 os.makedirs(os.path.join(app.root_path, 'instance'), exist_ok=True)
@@ -171,7 +221,7 @@ def logout():
 @login_required
 def dashboard():
     # Ambil total pemasukan dan pengeluaran bulan ini
-    now = datetime.now(WIB).replace(tzinfo=None)
+    now = normalize_wib_storage(now_wib())
     transactions = Transaction.query.filter_by(user_id=current_user.id).all()
     
     # Hitung saldo total dari semua dompet milik sendiri
@@ -250,7 +300,11 @@ def wallets():
 def add_wallet():
     name = request.form['name']
     type_ = request.form['type']
-    balance = float(request.form['balance'])
+    try:
+        balance = parse_positive_amount(request.form['balance'], 'Saldo awal', allow_zero=True)
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('wallets'))
     wallet = Wallet(name=name, type=type_, balance=balance, user_id=current_user.id)
     db.session.add(wallet)
     db.session.commit()
@@ -264,9 +318,14 @@ def edit_wallet(id):
     if wallet.user_id != current_user.id:
         flash('Anda tidak memiliki akses')
         return redirect(url_for('wallets'))
+    try:
+        balance = parse_positive_amount(request.form['balance'], 'Saldo', allow_zero=True)
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('wallets'))
     wallet.name = request.form['name']
     wallet.type = request.form['type']
-    wallet.balance = float(request.form['balance'])
+    wallet.balance = balance
     db.session.commit()
     flash('Dompet diperbarui')
     return redirect(url_for('wallets'))
@@ -311,15 +370,14 @@ def get_filtered_transactions(user_id, filters):
 
     if start_date:
         try:
-            sd = datetime.strptime(start_date, '%Y-%m-%d')
+            sd = parse_date_filter(start_date)
             query = query.filter(Transaction.date >= sd)
         except ValueError:
             pass
 
     if end_date:
         try:
-            from datetime import timedelta
-            ed = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+            ed = parse_date_filter(end_date, end_of_day=True)
             query = query.filter(Transaction.date < ed)
         except ValueError:
             pass
@@ -385,7 +443,7 @@ def report_preview():
         return jsonify({
             'transactions': [
                 {
-                    'date': t.date.strftime('%d/%m/%Y %H:%M'),
+                    'date': to_wib(t.date).strftime('%d/%m/%Y %H:%M'),
                     'description': t.description or '-',
                     'amount': float(t.amount),
                     'type': t.type,
@@ -412,18 +470,21 @@ def report_preview():
 @app.route('/transaction/add', methods=['POST'])
 @login_required
 def add_transaction():
-    amount = float(request.form['amount'])
+    try:
+        amount = parse_positive_amount(request.form.get('amount'))
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('transactions'))
+
     desc = request.form['description']
     ttype = request.form['type']
-    cat_id = int(request.form['category_id'])
-    wallet_id = int(request.form['wallet_id'])
-    date_str = request.form['date']
-    
-    # Parse tanggal dari format datetime-local (YYYY-MM-DDTHH:MM)
+
     try:
-        trans_date = datetime.strptime(date_str, '%Y-%m-%dT%H:%M')
-    except ValueError:
-        flash('Format tanggal tidak valid')
+        cat_id = int(request.form['category_id'])
+        wallet_id = int(request.form['wallet_id'])
+        trans_date = parse_transaction_datetime(request.form.get('date'))
+    except (TypeError, ValueError) as exc:
+        flash(str(exc), 'danger')
         return redirect(url_for('transactions'))
 
     # Validasi wallet: apakah milik sendiri atau bersama dengan izin add
@@ -446,6 +507,9 @@ def add_transaction():
     if ttype == 'income':
         wallet.balance += amount
     else:
+        if wallet.balance < amount:
+            flash('Saldo tidak mencukupi', 'danger')
+            return redirect(url_for('transactions'))
         wallet.balance -= amount
 
     db.session.add(trans)
@@ -461,12 +525,14 @@ def edit_transaction(id):
         flash('Anda tidak memiliki akses')
         return redirect(url_for('transactions'))
     
-    date_str = request.form['date']
-    # Parse tanggal dari format datetime-local (YYYY-MM-DDTHH:MM)
     try:
-        trans_date = datetime.strptime(date_str, '%Y-%m-%dT%H:%M')
-    except ValueError:
-        flash('Format tanggal tidak valid')
+        trans_date = parse_transaction_datetime(request.form.get('date'))
+        new_amount = parse_positive_amount(request.form.get('amount'))
+        new_category_id = int(request.form['category_id'])
+        new_wallet_id = int(request.form['wallet_id'])
+        new_type = request.form['type']
+    except (TypeError, ValueError) as exc:
+        flash(str(exc), 'danger')
         return redirect(url_for('transactions'))
     
     # Kembalikan saldo lama
@@ -477,11 +543,11 @@ def edit_transaction(id):
         wallet.balance += trans.amount
 
     # Update data baru
-    trans.amount = float(request.form['amount'])
+    trans.amount = new_amount
     trans.description = request.form['description']
-    trans.type = request.form['type']
-    trans.category_id = int(request.form['category_id'])
-    trans.wallet_id = int(request.form['wallet_id'])
+    trans.type = new_type
+    trans.category_id = new_category_id
+    trans.wallet_id = new_wallet_id
     trans.date = trans_date
 
     # Update saldo baru
@@ -489,6 +555,9 @@ def edit_transaction(id):
     if trans.type == 'income':
         new_wallet.balance += trans.amount
     else:
+        if new_wallet.balance < trans.amount:
+            flash('Saldo tidak mencukupi', 'danger')
+            return redirect(url_for('transactions'))
         new_wallet.balance -= trans.amount
 
     db.session.commit()
@@ -517,7 +586,7 @@ def delete_transaction(id):
 @login_required
 def budgets():
     from sqlalchemy import func, extract
-    now = datetime.now()
+    now = normalize_wib_storage(now_wib())
     month = request.args.get('month', now.month, type=int)
     year = request.args.get('year', now.year, type=int)
     budgets = Budget.query.filter_by(user_id=current_user.id, month=month, year=year).all()
@@ -545,7 +614,11 @@ def add_budget():
     cat_id = int(request.form['category_id'])
     month = int(request.form['month'])
     year = int(request.form['year'])
-    amount = float(request.form['amount'])
+    try:
+        amount = parse_positive_amount(request.form.get('amount'))
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('budgets', month=month, year=year))
     # Cek apakah sudah ada
     existing = Budget.query.filter_by(user_id=current_user.id, category_id=cat_id, month=month, year=year).first()
     if existing:
@@ -592,7 +665,7 @@ def budget_details(budget_id):
         'month': budget.month,
         'year': budget.year,
         'transactions': [{
-            'date': t.date.strftime('%d/%m/%Y'),
+            'date': to_wib(t.date).strftime('%d/%m/%Y'),
             'description': t.description,
             'amount': float(t.amount),
             'wallet': t.wallet.name
@@ -691,7 +764,7 @@ def export_budget_pdf(budget_id):
     table_data = [['Tanggal', 'Deskripsi', 'Dompet', 'Jumlah']]
     for t in transactions:
         table_data.append([
-            t.date.strftime('%d/%m/%Y'),
+            to_wib(t.date).strftime('%d/%m/%Y'),
             Paragraph(t.description, normal_style),
             t.wallet.name,
             f"Rp {t.amount:,.0f}"
@@ -718,7 +791,7 @@ def export_budget_pdf(budget_id):
     
     # Footer
     elements.append(Spacer(1, 0.5 * inch))
-    footer_text = f"Dicetak pada: {datetime.now(WIB).strftime('%d/%m/%Y %H:%M:%S')}"
+    footer_text = f"Dicetak pada: {now_wib().strftime('%d/%m/%Y %H:%M:%S')}"
     elements.append(Paragraph(footer_text, ParagraphStyle('Footer', parent=styles['Italic'], alignment=2, fontSize=8)))
 
     doc.build(elements)
@@ -735,7 +808,7 @@ def reports():
 @login_required
 def chart_data():
     from sqlalchemy import func, extract
-    now = datetime.now(WIB).replace(tzinfo=None)
+    now = normalize_wib_storage(now_wib())
     data = db.session.query(Category.name, func.sum(Transaction.amount)).\
            join(Transaction).\
            filter(Transaction.user_id == current_user.id,
@@ -749,7 +822,7 @@ def chart_data():
 @login_required
 def income_expense_data():
     from sqlalchemy import func, extract
-    now = datetime.now(WIB).replace(tzinfo=None)
+    now = normalize_wib_storage(now_wib())
     
     # Get monthly income and expense totals
     income = db.session.query(func.sum(Transaction.amount)).\
@@ -774,7 +847,7 @@ def income_expense_data():
 @login_required
 def income_expense_line():
     from sqlalchemy import func, extract
-    now = datetime.now(WIB).replace(tzinfo=None)
+    now = normalize_wib_storage(now_wib())
     labels = []
     incomes = []
     expenses = []
@@ -807,7 +880,7 @@ def income_expense_line():
 @login_required
 def budget_realization():
     from sqlalchemy import func, extract
-    now = datetime.now(WIB).replace(tzinfo=None)
+    now = normalize_wib_storage(now_wib())
     budgets = Budget.query.filter_by(user_id=current_user.id, month=now.month, year=now.year).all()
     labels = []
     budget_vals = []
@@ -828,8 +901,7 @@ def budget_realization():
 @app.route('/api/cashflow-data')
 @login_required
 def cashflow_data():
-    from datetime import timedelta
-    now = datetime.now(WIB).replace(tzinfo=None)
+    now = normalize_wib_storage(now_wib())
     start = now - timedelta(days=30)
     transactions = Transaction.query.filter(Transaction.user_id == current_user.id,
                                          Transaction.date >= start).order_by(Transaction.date).all()
@@ -841,7 +913,7 @@ def cashflow_data():
             bal += t.amount
         else:
             bal -= t.amount
-        labels.append(t.date.strftime('%d/%m'))
+        labels.append(to_wib(t.date).strftime('%d/%m'))
         balances.append(bal)
     return jsonify({'labels': labels, 'balance': balances})
 
@@ -878,7 +950,7 @@ def export_excel():
     
     # Add data rows
     for row_num, transaction in enumerate(transactions, 2):
-        ws.cell(row=row_num, column=1).value = transaction.date.strftime('%Y-%m-%d %H:%M')
+        ws.cell(row=row_num, column=1).value = to_wib(transaction.date).strftime('%Y-%m-%d %H:%M')
         ws.cell(row=row_num, column=2).value = transaction.description
         ws.cell(row=row_num, column=3).value = transaction.amount
         ws.cell(row=row_num, column=4).value = 'Pemasukan' if transaction.type == 'income' else 'Pengeluaran'
@@ -998,7 +1070,7 @@ def export_pdf():
     table_data = [['Tanggal', 'Deskripsi', 'Kategori', 'Tipe', 'Jumlah']]
     for t in transactions:
         table_data.append([
-            t.date.strftime('%d/%m/%Y'),
+            to_wib(t.date).strftime('%d/%m/%Y'),
             Paragraph(t.description, normal_style),
             t.category.name,
             'Masuk' if t.type == 'income' else 'Keluar',
@@ -1042,13 +1114,13 @@ def export_pdf():
     
     # 4. Footer
     elements.append(Spacer(1, 0.5 * inch))
-    footer_text = f"Dicetak pada: {datetime.now(WIB).strftime('%d/%m/%Y %H:%M:%S')}"
+    footer_text = f"Dicetak pada: {now_wib().strftime('%d/%m/%Y %H:%M:%S')}"
     elements.append(Paragraph(footer_text, ParagraphStyle('Footer', parent=styles['Italic'], alignment=2, fontSize=8, textColor=colors.grey)))
 
     doc.build(elements)
     buffer.seek(0)
     
-    filename = f"Laporan_Keuangan_{current_user.username}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    filename = f"Laporan_Keuangan_{current_user.username}_{now_wib().strftime('%Y%m%d')}.pdf"
     return send_file(buffer, download_name=filename, as_attachment=True)
 
 @app.route('/share/wallet', methods=['POST'])
@@ -1096,23 +1168,37 @@ def unshare_wallet(id):
 def transfer():
     wallets = Wallet.query.filter_by(user_id=current_user.id).all()
     if request.method == 'POST':
-        from_wallet_id = int(request.form['from_wallet'])
-        to_wallet_id = int(request.form['to_wallet'])
-        amount = float(request.form['amount'])
-        fee = float(request.form.get('fee', 0))
+        try:
+            from_wallet_id = int(request.form['from_wallet'])
+            to_wallet_id = int(request.form['to_wallet'])
+            amount = parse_positive_amount(request.form.get('amount'))
+            fee = parse_positive_amount(request.form.get('fee', 0), 'Biaya transfer', allow_zero=True)
+        except (TypeError, ValueError) as exc:
+            flash(str(exc), 'danger')
+            return redirect(url_for('transfer'))
+
         description = request.form.get('description', 'Transfer')
+        transfer_time = normalize_wib_storage(now_wib())
 
         # Validasi dompet sama
         if from_wallet_id == to_wallet_id:
-            flash('Dompet asal dan tujuan tidak boleh sama')
+            flash('Dompet asal dan tujuan tidak boleh sama', 'danger')
             return redirect(url_for('transfer'))
 
         from_wallet = Wallet.query.get(from_wallet_id)
         to_wallet = Wallet.query.get(to_wallet_id)
 
+        if not from_wallet or not to_wallet:
+            flash('Dompet tidak ditemukan', 'danger')
+            return redirect(url_for('transfer'))
+
+        if from_wallet.user_id != current_user.id or to_wallet.user_id != current_user.id:
+            flash('Anda tidak memiliki akses ke dompet yang dipilih', 'danger')
+            return redirect(url_for('transfer'))
+
         # Validasi saldo
         if from_wallet.balance < amount + fee:
-            flash('Saldo tidak mencukupi (termasuk biaya transfer)')
+            flash('Saldo tidak mencukupi (termasuk biaya transfer)', 'danger')
             return redirect(url_for('transfer'))
 
         # Cari atau buat kategori khusus transfer
@@ -1135,7 +1221,8 @@ def transfer():
             type='expense',
             category_id=transfer_out_cat.id,
             wallet_id=from_wallet.id,
-            user_id=current_user.id
+            user_id=current_user.id,
+            date=transfer_time
         )
         from_wallet.balance -= amount
         db.session.add(trans_out)
@@ -1147,7 +1234,8 @@ def transfer():
             type='income',
             category_id=transfer_in_cat.id,
             wallet_id=to_wallet.id,
-            user_id=current_user.id
+            user_id=current_user.id,
+            date=transfer_time
         )
         to_wallet.balance += amount
         db.session.add(trans_in)
@@ -1166,7 +1254,8 @@ def transfer():
                 type='expense',
                 category_id=fee_cat.id,
                 wallet_id=from_wallet.id,
-                user_id=current_user.id
+                user_id=current_user.id,
+                date=transfer_time
             )
             from_wallet.balance -= fee
             db.session.add(trans_fee)
@@ -1359,7 +1448,7 @@ def backup():
         category = Category.query.get(t.category_id)
         wallet = Wallet.query.get(t.wallet_id)
         writer.writerow([
-            t.date.strftime('%Y-%m-%d %H:%M:%S'),
+            to_wib(t.date).strftime('%Y-%m-%d %H:%M:%S'),
             t.amount,
             t.description,
             t.type,
@@ -1411,14 +1500,14 @@ def import_data():
                     
                     # Parse date
                     try:
-                        date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                        date = normalize_wib_storage(datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S'))
                     except ValueError:
                         errors.append(f'Baris {row_num}: Format tanggal tidak valid')
                         continue
                     
                     # Parse amount
                     try:
-                        amount = float(amount_str)
+                        amount = parse_positive_amount(amount_str)
                     except ValueError:
                         errors.append(f'Baris {row_num}: Jumlah tidak valid')
                         continue
