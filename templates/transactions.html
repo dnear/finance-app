@@ -456,7 +456,7 @@
 
         const exportExcelBaseUrl = "{{ url_for('export_excel') }}";
         const exportPdfBaseUrl = "{{ url_for('export_pdf') }}";
-        const previewBaseUrl = "{{ url_for('report_preview') }}";
+        const previewBaseUrl = "{{ url_for('api.preview_report_api') }}";
 
         function updateExportLinks(params) {
             const queryString = params.toString();
@@ -504,7 +504,8 @@
                     throw new Error('Preview request failed');
                 }
 
-                const data = await response.json();
+                const responseData = await response.json();
+                const data = responseData.data;
                 setSummaryValue(totalIncome, data.summary.total_income);
                 setSummaryValue(totalExpense, -Math.abs(data.summary.total_expense));
                 setSummaryValue(balance, data.summary.balance);

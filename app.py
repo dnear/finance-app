@@ -1,11 +1,14 @@
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_file
+from flask_caching import Cache
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+from sqlalchemy.orm import joinedload
 from utils.datetime_utils import WIB, now_wib, to_wib
 from utils.logger import setup_logger
+from api import api_bp
 from services.transaction_service import (
     calculate_transaction_totals,
     create_transaction,
@@ -66,6 +69,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path.replace(os.sep, '/'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['CACHE_TYPE'] = 'simple'
+app.config['CACHE_DEFAULT_TIMEOUT'] = 60
 
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 MAX_PROFILE_IMAGE_DIMENSION = 720
@@ -73,6 +78,9 @@ MAX_PROFILE_IMAGE_PIXELS = 20_000_000
 PROFILE_JPEG_QUALITY = 78
 
 db.init_app(app)
+cache = Cache(config={"CACHE_TYPE": "simple"})
+cache.init_app(app)
+app.register_blueprint(api_bp)
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -97,6 +105,34 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+
+@cache.memoize(timeout=60)
+def get_dashboard_data(user_id):
+    now = normalize_wib_storage(now_wib())
+    from sqlalchemy import func, extract
+
+    total_balance = db.session.query(db.func.sum(Wallet.balance)).filter_by(user_id=user_id).scalar() or 0
+
+    expense_data = db.session.query(Category.name, func.sum(Transaction.amount)).\
+        join(Transaction, Transaction.category_id == Category.id).\
+        filter(Transaction.user_id == user_id,
+               Transaction.type == 'expense',
+               extract('month', Transaction.date) == now.month,
+               extract('year', Transaction.date) == now.year).\
+        group_by(Category.id).all()
+
+    recent_transactions = Transaction.query.options(
+        joinedload(Transaction.category),
+        joinedload(Transaction.wallet),
+    ).filter_by(user_id=user_id).order_by(Transaction.date.desc()).limit(5).all()
+
+    return {
+        'total_balance': total_balance,
+        'expense_labels': [d[0] for d in expense_data],
+        'expense_values': [float(d[1]) for d in expense_data],
+        'recent_transactions': recent_transactions,
+    }
 
 @app.context_processor
 def inject_categories_wallets():
@@ -182,30 +218,13 @@ def logout():
 @app.route('/')
 @login_required
 def dashboard():
-    # Ambil total pemasukan dan pengeluaran bulan ini
-    now = normalize_wib_storage(now_wib())
-    transactions = Transaction.query.filter_by(user_id=current_user.id).all()
-    
-    # Hitung saldo total dari semua dompet milik sendiri
-    total_balance = db.session.query(db.func.sum(Wallet.balance)).filter_by(user_id=current_user.id).scalar() or 0
-    
-    # Data untuk grafik pengeluaran per kategori bulan ini
-    from sqlalchemy import func, extract
-    expense_data = db.session.query(Category.name, func.sum(Transaction.amount)).\
-        join(Transaction, Transaction.category_id == Category.id).\
-        filter(Transaction.user_id == current_user.id,
-               Transaction.type == 'expense',
-               extract('month', Transaction.date) == now.month,
-               extract('year', Transaction.date) == now.year).\
-        group_by(Category.id).all()
-    
-    expense_labels = [d[0] for d in expense_data]
-    expense_values = [float(d[1]) for d in expense_data]
-    
+    dashboard_data = get_dashboard_data(current_user.id)
+
     return render_template('index.html', 
-                           total_balance=total_balance,
-                           expense_labels=expense_labels,
-                           expense_values=expense_values)
+                           total_balance=dashboard_data['total_balance'],
+                           expense_labels=dashboard_data['expense_labels'],
+                           expense_values=dashboard_data['expense_values'],
+                           recent_transactions=dashboard_data['recent_transactions'])
 
 @app.route('/categories')
 @login_required
@@ -357,27 +376,8 @@ def report_preview():
         'search': request.args.get('search', ''),
     }
 
-    transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.desc()).all()
+    transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.desc()).limit(100).all()
     totals = calculate_transaction_totals(transactions)
-
-    if request.args.get('format') == 'json':
-        return jsonify({
-            'transactions': [
-                {
-                    'date': to_wib(t.date).strftime('%d/%m/%Y %H:%M'),
-                    'description': t.description or '-',
-                    'amount': float(t.amount),
-                    'type': t.type,
-                    'category': t.category.name if t.category else '-',
-                }
-                for t in transactions
-            ],
-            'summary': {
-                'total_income': float(totals['total_income']),
-                'total_expense': float(totals['total_expense']),
-                'balance': float(totals['net_total']),
-            }
-        })
 
     return render_template(
         'report_preview.html',
@@ -418,6 +418,7 @@ def add_transaction():
             transaction_type=ttype,
             date=trans_date,
         )
+        cache.delete_memoized(get_dashboard_data, current_user.id)
         logger.info(f"Transaction created: user={current_user.id}, amount={amount}")
         flash('Transaksi disimpan')
     except Exception as exc:
@@ -450,6 +451,7 @@ def edit_transaction(id):
             transaction_type=new_type,
             date=trans_date,
         )
+        cache.delete_memoized(get_dashboard_data, current_user.id)
         logger.info(f"Transaction updated: user={current_user.id}, transaction_id={id}, amount={new_amount}")
         flash('Transaksi diperbarui')
     except Exception as exc:
@@ -463,6 +465,7 @@ def delete_transaction(id):
     trans = Transaction.query.get_or_404(id)
     try:
         delete_transaction_service(trans, current_user.id)
+        cache.delete_memoized(get_dashboard_data, current_user.id)
         logger.info(f"Transaction deleted: user={current_user.id}, transaction_id={id}")
         flash('Transaksi dihapus')
     except Exception as exc:
@@ -1077,6 +1080,7 @@ def transfer():
                 fee=fee,
                 description=description,
             )
+            cache.delete_memoized(get_dashboard_data, current_user.id)
             logger.info(
                 f"Transfer completed: user={current_user.id}, from_wallet={from_wallet_id}, to_wallet={to_wallet_id}, amount={amount}, fee={fee}"
             )

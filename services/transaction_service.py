@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
+from sqlalchemy.orm import joinedload
+
 from models import db, Transaction, Wallet
 from utils.datetime_utils import now_wib, to_wib
 
@@ -68,7 +70,10 @@ def get_filtered_transactions(user_id, filters):
     end_date = filters.get('end_date')
     search = filters.get('search')
 
-    query = Transaction.query.filter_by(user_id=user_id)
+    query = Transaction.query.options(
+        joinedload(Transaction.wallet),
+        joinedload(Transaction.category),
+    ).filter_by(user_id=user_id)
 
     if category_filter:
         try:
