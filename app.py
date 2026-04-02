@@ -2,10 +2,26 @@ from flask import Flask, render_template, redirect, url_for, request, flash, jso
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
 from dotenv import load_dotenv
 import os
 from utils.datetime_utils import WIB, now_wib, to_wib
+from utils.logger import setup_logger
+from services.transaction_service import (
+    calculate_transaction_totals,
+    create_transaction,
+    delete_transaction as delete_transaction_service,
+    get_filtered_transactions,
+    normalize_wib_storage,
+    parse_positive_amount,
+    parse_transaction_datetime,
+    update_transaction,
+)
+from services.wallet_service import (
+    create_wallet,
+    delete_wallet as delete_wallet_service,
+    transfer_balance,
+    update_wallet,
+)
 
 # load environment variables from .env file (if present)
 load_dotenv()
@@ -23,6 +39,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 app = Flask(__name__)
+logger = setup_logger()
 # gunakan environment variable untuk secret key agar tidak tersimpan di kode
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'kunci-rahasia-ubah-sekarang')
 # durasi cookie untuk fitur "ingat saya" (opsional, default 365 hari)
@@ -30,61 +47,6 @@ from datetime import timedelta
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DATETIME_LOCAL_FORMAT = '%Y-%m-%dT%H:%M'
-DATE_INPUT_FORMAT = '%Y-%m-%d'
-
-
-def normalize_wib_storage(dt):
-    converted = to_wib(dt)
-    return converted.replace(tzinfo=None) if converted else None
-
-
-def parse_positive_amount(raw_value, field_name='Nominal', allow_zero=False):
-    if raw_value is None or str(raw_value).strip() == '':
-        raise ValueError(f'{field_name} tidak valid')
-
-    normalized = str(raw_value).strip().replace(',', '')
-
-    try:
-        amount = float(Decimal(normalized))
-    except (InvalidOperation, ValueError):
-        raise ValueError(f'{field_name} tidak valid')
-
-    minimum = 0 if allow_zero else 0
-    if allow_zero:
-        if amount < 0:
-            raise ValueError(f'{field_name} tidak valid')
-    elif amount <= minimum:
-        raise ValueError(f'{field_name} tidak valid')
-
-    return amount
-
-
-def parse_transaction_datetime(raw_value):
-    if not raw_value or not str(raw_value).strip():
-        raise ValueError('Tanggal tidak boleh kosong')
-
-    try:
-        parsed = datetime.strptime(raw_value.strip(), DATETIME_LOCAL_FORMAT)
-    except ValueError:
-        raise ValueError('Format tanggal tidak valid')
-
-    return normalize_wib_storage(parsed)
-
-
-def parse_date_filter(raw_value, end_of_day=False):
-    if not raw_value or not str(raw_value).strip():
-        raise ValueError('Tanggal tidak boleh kosong')
-
-    try:
-        parsed = datetime.strptime(raw_value.strip(), DATE_INPUT_FORMAT)
-    except ValueError:
-        raise ValueError('Format tanggal tidak valid')
-
-    if end_of_day:
-        parsed = parsed + timedelta(days=1)
-
-    return normalize_wib_storage(parsed)
 
 
 def resolve_database_path():
@@ -305,89 +267,50 @@ def add_wallet():
     except ValueError as exc:
         flash(str(exc), 'danger')
         return redirect(url_for('wallets'))
-    wallet = Wallet(name=name, type=type_, balance=balance, user_id=current_user.id)
-    db.session.add(wallet)
-    db.session.commit()
-    flash('Dompet ditambahkan')
+    try:
+        create_wallet(current_user.id, name, type_, balance)
+        logger.info(f"Wallet created: user={current_user.id}, name={name}")
+        flash('Dompet ditambahkan')
+    except Exception:
+        logger.error('Wallet create error', exc_info=True)
+        flash('Gagal menambahkan dompet', 'danger')
     return redirect(url_for('wallets'))
 
 @app.route('/wallet/edit/<int:id>', methods=['POST'])
 @login_required
 def edit_wallet(id):
     wallet = Wallet.query.get_or_404(id)
-    if wallet.user_id != current_user.id:
-        flash('Anda tidak memiliki akses')
-        return redirect(url_for('wallets'))
     try:
         balance = parse_positive_amount(request.form['balance'], 'Saldo', allow_zero=True)
     except ValueError as exc:
         flash(str(exc), 'danger')
         return redirect(url_for('wallets'))
-    wallet.name = request.form['name']
-    wallet.type = request.form['type']
-    wallet.balance = balance
-    db.session.commit()
-    flash('Dompet diperbarui')
+
+    try:
+        update_wallet(wallet, current_user.id, request.form['name'], request.form['type'], balance)
+        logger.info(f"Wallet updated: user={current_user.id}, wallet_id={wallet.id}")
+        flash('Dompet diperbarui')
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    except Exception:
+        logger.error('Wallet update error', exc_info=True)
+        flash('Gagal memperbarui dompet', 'danger')
     return redirect(url_for('wallets'))
 
 @app.route('/wallet/delete/<int:id>')
 @login_required
 def delete_wallet(id):
     wallet = Wallet.query.get_or_404(id)
-    if wallet.user_id != current_user.id:
-        flash('Anda tidak memiliki akses')
-        return redirect(url_for('wallets'))
-    # Hapus juga transaksi terkait? Atau larang hapus jika ada transaksi
-    if wallet.transactions:
-        flash('Dompet memiliki transaksi, tidak dapat dihapus')
-        return redirect(url_for('wallets'))
-    db.session.delete(wallet)
-    db.session.commit()
-    flash('Dompet dihapus')
+    try:
+        delete_wallet_service(wallet, current_user.id)
+        logger.info(f"Wallet deleted: user={current_user.id}, wallet_id={id}")
+        flash('Dompet dihapus')
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    except Exception:
+        logger.error('Wallet delete error', exc_info=True)
+        flash('Gagal menghapus dompet', 'danger')
     return redirect(url_for('wallets'))
-
-
-def get_filtered_transactions(user_id, filters):
-    category_filter = filters.get('category_id')
-    wallet_filter = filters.get('wallet_id')
-    start_date = filters.get('start_date')
-    end_date = filters.get('end_date')
-    search = filters.get('search')
-
-    query = Transaction.query.filter_by(user_id=user_id)
-
-    if category_filter:
-        try:
-            query = query.filter_by(category_id=int(category_filter))
-        except (TypeError, ValueError):
-            pass
-
-    if wallet_filter:
-        try:
-            query = query.filter(Transaction.wallet_id == int(wallet_filter))
-        except (TypeError, ValueError):
-            pass
-
-    if start_date:
-        try:
-            sd = parse_date_filter(start_date)
-            query = query.filter(Transaction.date >= sd)
-        except ValueError:
-            pass
-
-    if end_date:
-        try:
-            ed = parse_date_filter(end_date, end_of_day=True)
-            query = query.filter(Transaction.date < ed)
-        except ValueError:
-            pass
-
-    if search:
-        search = search.strip()
-        if search:
-            query = query.filter(Transaction.description.ilike(f'%{search}%'))
-
-    return query
 
 @app.route('/transactions')
 @login_required
@@ -435,9 +358,7 @@ def report_preview():
     }
 
     transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.desc()).all()
-    total_income = sum(t.amount for t in transactions if t.type == 'income')
-    total_expense = sum(t.amount for t in transactions if t.type == 'expense')
-    net_total = total_income - total_expense
+    totals = calculate_transaction_totals(transactions)
 
     if request.args.get('format') == 'json':
         return jsonify({
@@ -452,9 +373,9 @@ def report_preview():
                 for t in transactions
             ],
             'summary': {
-                'total_income': float(total_income),
-                'total_expense': float(total_expense),
-                'balance': float(net_total),
+                'total_income': float(totals['total_income']),
+                'total_expense': float(totals['total_expense']),
+                'balance': float(totals['net_total']),
             }
         })
 
@@ -462,9 +383,9 @@ def report_preview():
         'report_preview.html',
         transactions=transactions,
         filters=filters,
-        total_income=total_income,
-        total_expense=total_expense,
-        net_total=net_total,
+        total_income=totals['total_income'],
+        total_expense=totals['total_expense'],
+        net_total=totals['net_total'],
     )
 
 @app.route('/transaction/add', methods=['POST'])
@@ -487,44 +408,27 @@ def add_transaction():
         flash(str(exc), 'danger')
         return redirect(url_for('transactions'))
 
-    # Validasi wallet: apakah milik sendiri atau bersama dengan izin add
-    wallet = Wallet.query.get(wallet_id)
-    if not wallet:
-        flash('Dompet tidak ditemukan')
-        return redirect(url_for('transactions'))
-    
-    if wallet.user_id != current_user.id:
-        # Cek shared wallet
-        shared = SharedWallet.query.filter_by(wallet_id=wallet_id, shared_with_id=current_user.id).first()
-        if not shared or shared.permission != 'add':
-            flash('Anda tidak memiliki izin menambah transaksi di dompet ini')
-            return redirect(url_for('transactions'))
-
-    trans = Transaction(amount=amount, description=desc, type=ttype,
-                        category_id=cat_id, wallet_id=wallet_id,
-                        user_id=current_user.id, date=trans_date)
-    # Update saldo dompet
-    if ttype == 'income':
-        wallet.balance += amount
-    else:
-        if wallet.balance < amount:
-            flash('Saldo tidak mencukupi', 'danger')
-            return redirect(url_for('transactions'))
-        wallet.balance -= amount
-
-    db.session.add(trans)
-    db.session.commit()
-    flash('Transaksi disimpan')
+    try:
+        create_transaction(
+            user_id=current_user.id,
+            wallet_id=wallet_id,
+            amount=amount,
+            category_id=cat_id,
+            description=desc,
+            transaction_type=ttype,
+            date=trans_date,
+        )
+        logger.info(f"Transaction created: user={current_user.id}, amount={amount}")
+        flash('Transaksi disimpan')
+    except Exception as exc:
+        logger.error('Transaction create error', exc_info=True)
+        flash(str(exc), 'danger')
     return redirect(url_for('transactions'))
 
 @app.route('/transaction/edit/<int:id>', methods=['POST'])
 @login_required
 def edit_transaction(id):
     trans = Transaction.query.get_or_404(id)
-    if trans.user_id != current_user.id:
-        flash('Anda tidak memiliki akses')
-        return redirect(url_for('transactions'))
-    
     try:
         trans_date = parse_transaction_datetime(request.form.get('date'))
         new_amount = parse_positive_amount(request.form.get('amount'))
@@ -535,51 +439,35 @@ def edit_transaction(id):
         flash(str(exc), 'danger')
         return redirect(url_for('transactions'))
     
-    # Kembalikan saldo lama
-    wallet = Wallet.query.get(trans.wallet_id)
-    if trans.type == 'income':
-        wallet.balance -= trans.amount
-    else:
-        wallet.balance += trans.amount
-
-    # Update data baru
-    trans.amount = new_amount
-    trans.description = request.form['description']
-    trans.type = new_type
-    trans.category_id = new_category_id
-    trans.wallet_id = new_wallet_id
-    trans.date = trans_date
-
-    # Update saldo baru
-    new_wallet = Wallet.query.get(trans.wallet_id)
-    if trans.type == 'income':
-        new_wallet.balance += trans.amount
-    else:
-        if new_wallet.balance < trans.amount:
-            flash('Saldo tidak mencukupi', 'danger')
-            return redirect(url_for('transactions'))
-        new_wallet.balance -= trans.amount
-
-    db.session.commit()
-    flash('Transaksi diperbarui')
+    try:
+        update_transaction(
+            transaction=trans,
+            user_id=current_user.id,
+            wallet_id=new_wallet_id,
+            amount=new_amount,
+            category_id=new_category_id,
+            description=request.form['description'],
+            transaction_type=new_type,
+            date=trans_date,
+        )
+        logger.info(f"Transaction updated: user={current_user.id}, transaction_id={id}, amount={new_amount}")
+        flash('Transaksi diperbarui')
+    except Exception as exc:
+        logger.error('Transaction update error', exc_info=True)
+        flash(str(exc), 'danger')
     return redirect(url_for('transactions'))
 
 @app.route('/transaction/delete/<int:id>')
 @login_required
 def delete_transaction(id):
     trans = Transaction.query.get_or_404(id)
-    if trans.user_id != current_user.id:
-        flash('Anda tidak memiliki akses')
-        return redirect(url_for('transactions'))
-    # Kembalikan saldo
-    wallet = Wallet.query.get(trans.wallet_id)
-    if trans.type == 'income':
-        wallet.balance -= trans.amount
-    else:
-        wallet.balance += trans.amount
-    db.session.delete(trans)
-    db.session.commit()
-    flash('Transaksi dihapus')
+    try:
+        delete_transaction_service(trans, current_user.id)
+        logger.info(f"Transaction deleted: user={current_user.id}, transaction_id={id}")
+        flash('Transaksi dihapus')
+    except Exception as exc:
+        logger.error('Transaction delete error', exc_info=True)
+        flash(str(exc), 'danger')
     return redirect(url_for('transactions'))
 
 @app.route('/budgets')
@@ -987,9 +875,10 @@ def export_pdf():
     transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.asc()).all()
     
     # Calculate summary
-    total_income = sum(t.amount for t in transactions if t.type == 'income')
-    total_expense = sum(t.amount for t in transactions if t.type == 'expense')
-    net_flow = total_income - total_expense
+    totals = calculate_transaction_totals(transactions)
+    total_income = totals['total_income']
+    total_expense = totals['total_expense']
+    net_flow = totals['net_total']
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=portrait(letter),
@@ -1178,90 +1067,25 @@ def transfer():
             return redirect(url_for('transfer'))
 
         description = request.form.get('description', 'Transfer')
-        transfer_time = normalize_wib_storage(now_wib())
 
-        # Validasi dompet sama
-        if from_wallet_id == to_wallet_id:
-            flash('Dompet asal dan tujuan tidak boleh sama', 'danger')
-            return redirect(url_for('transfer'))
-
-        from_wallet = Wallet.query.get(from_wallet_id)
-        to_wallet = Wallet.query.get(to_wallet_id)
-
-        if not from_wallet or not to_wallet:
-            flash('Dompet tidak ditemukan', 'danger')
-            return redirect(url_for('transfer'))
-
-        if from_wallet.user_id != current_user.id or to_wallet.user_id != current_user.id:
-            flash('Anda tidak memiliki akses ke dompet yang dipilih', 'danger')
-            return redirect(url_for('transfer'))
-
-        # Validasi saldo
-        if from_wallet.balance < amount + fee:
-            flash('Saldo tidak mencukupi (termasuk biaya transfer)', 'danger')
-            return redirect(url_for('transfer'))
-
-        # Cari atau buat kategori khusus transfer
-        transfer_out_cat = Category.query.filter_by(user_id=current_user.id, name='Transfer (Keluar)', type='expense').first()
-        if not transfer_out_cat:
-            transfer_out_cat = Category(name='Transfer (Keluar)', type='expense', user_id=current_user.id)
-            db.session.add(transfer_out_cat)
-            db.session.flush()  # Penting: dapatkan ID
-
-        transfer_in_cat = Category.query.filter_by(user_id=current_user.id, name='Transfer (Masuk)', type='income').first()
-        if not transfer_in_cat:
-            transfer_in_cat = Category(name='Transfer (Masuk)', type='income', user_id=current_user.id)
-            db.session.add(transfer_in_cat)
-            db.session.flush()  # Penting: dapatkan ID
-
-        # Proses transaksi keluar
-        trans_out = Transaction(
-            amount=amount,
-            description=f'Transfer ke {to_wallet.name}: {description}',
-            type='expense',
-            category_id=transfer_out_cat.id,
-            wallet_id=from_wallet.id,
-            user_id=current_user.id,
-            date=transfer_time
-        )
-        from_wallet.balance -= amount
-        db.session.add(trans_out)
-
-        # Proses transaksi masuk
-        trans_in = Transaction(
-            amount=amount,
-            description=f'Transfer dari {from_wallet.name}: {description}',
-            type='income',
-            category_id=transfer_in_cat.id,
-            wallet_id=to_wallet.id,
-            user_id=current_user.id,
-            date=transfer_time
-        )
-        to_wallet.balance += amount
-        db.session.add(trans_in)
-
-        # Proses biaya transfer (jika ada)
-        if fee > 0:
-            fee_cat = Category.query.filter_by(user_id=current_user.id, name='Biaya Transfer', type='expense').first()
-            if not fee_cat:
-                fee_cat = Category(name='Biaya Transfer', type='expense', user_id=current_user.id)
-                db.session.add(fee_cat)
-                db.session.flush()  # Penting: dapatkan ID
-
-            trans_fee = Transaction(
-                amount=fee,
-                description=f'Biaya transfer ke {to_wallet.name}',
-                type='expense',
-                category_id=fee_cat.id,
-                wallet_id=from_wallet.id,
+        try:
+            transfer_balance(
                 user_id=current_user.id,
-                date=transfer_time
+                from_wallet_id=from_wallet_id,
+                to_wallet_id=to_wallet_id,
+                amount=amount,
+                fee=fee,
+                description=description,
             )
-            from_wallet.balance -= fee
-            db.session.add(trans_fee)
+            logger.info(
+                f"Transfer completed: user={current_user.id}, from_wallet={from_wallet_id}, to_wallet={to_wallet_id}, amount={amount}, fee={fee}"
+            )
+            flash('Transfer berhasil')
+        except Exception as exc:
+            logger.error('Transfer failed', exc_info=True)
+            flash(str(exc), 'danger')
+            return redirect(url_for('transfer'))
 
-        db.session.commit()
-        flash('Transfer berhasil')
         return redirect(url_for('wallets'))
 
     return render_template('transfer.html', wallets=wallets)
