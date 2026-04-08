@@ -107,12 +107,26 @@ body {
     overscroll-behavior: none;
 }
 
+body.modal-open {
+    position: fixed;
+    width: 100%;
+    overflow: hidden;
+    inset: 0;
+    touch-action: none;
+}
+
 .app-container {
     height: 100vh;
     height: 100dvh;
-    overflow-y: auto;
+    overflow: visible !important;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: none;
+}
+
+body.modal-open .app-container {
+    overflow: visible !important;
+    transform: none !important;
+    filter: none !important;
 }
 
 main.container {
@@ -408,10 +422,29 @@ a,
 
 /* Modal Styling*/
 .modal-backdrop {
-    z-index: 1050 !important;
+    z-index: 9998 !important;
+    pointer-events: auto;
 }
 .modal {
-    z-index: 1060 !important;
+    position: fixed;
+    inset: 0;
+    z-index: 9999 !important;
+    pointer-events: auto;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+}
+
+.modal-dialog {
+    position: relative;
+    z-index: 10000;
+    pointer-events: none;
+}
+
+.modal-content {
+    pointer-events: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    z-index: 10001;
 }
 
 /* Button styling */

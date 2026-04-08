@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeTheme();
     initializeLoadingUX();
     initializePaginationUX();
+    initializeIOSModalFix();
 
     // Konfirmasi hapus dengan sweet alert style (opsional)
     const deleteLinks = document.querySelectorAll('.delete-confirm');
@@ -303,4 +304,49 @@ function initializePaginationUX() {
     } catch (error) {
         // Ignore storage issues
     }
+}
+
+function initializeIOSModalFix() {
+    if (typeof bootstrap === 'undefined') {
+        return;
+    }
+
+    let scrollY = 0;
+
+    const lockBodyScroll = () => {
+        if (document.body.dataset.modalScrollLock === 'true') {
+            return;
+        }
+
+        scrollY = window.scrollY || window.pageYOffset || 0;
+        document.body.dataset.modalScrollLock = 'true';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.classList.add('modal-open');
+    };
+
+    const unlockBodyScroll = () => {
+        if (document.querySelectorAll('.modal.show').length > 0) {
+            return;
+        }
+
+        const storedTop = document.body.style.top;
+        document.body.classList.remove('modal-open');
+        document.body.style.top = '';
+        delete document.body.dataset.modalScrollLock;
+
+        const offset = storedTop ? Math.abs(parseInt(storedTop, 10)) : scrollY;
+        window.scrollTo(0, Number.isNaN(offset) ? scrollY : offset);
+    };
+
+    document.querySelectorAll('.modal').forEach((modal) => {
+        modal.addEventListener('show.bs.modal', lockBodyScroll);
+        modal.addEventListener('shown.bs.modal', () => {
+            modal.style.pointerEvents = 'auto';
+            const content = modal.querySelector('.modal-content');
+            if (content) {
+                content.style.pointerEvents = 'auto';
+            }
+        });
+        modal.addEventListener('hidden.bs.modal', unlockBodyScroll);
+    });
 }
