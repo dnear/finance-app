@@ -269,7 +269,12 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+@app.route('/offline')
+def offline():
+    return render_template('offline.html')
+
 @app.route('/')
+@app.route('/dashboard')
 @login_required
 def dashboard():
     selected_month = request.args.get('month')

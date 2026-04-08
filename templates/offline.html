@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #2563eb;
+      --shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --card: #1e293b;
+        --text: #e2e8f0;
+        --muted: #cbd5e1;
+        --accent: #60a5fa;
+        --shadow: 0 20px 45px rgba(2, 6, 23, 0.45);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: Inter, Arial, sans-serif;
+      background: radial-gradient(circle at top, rgba(37, 99, 235, 0.14), transparent 35%), var(--bg);
+      color: var(--text);
+      text-align: center;
+    }
+
+    .offline-card {
+      width: 100%;
+      max-width: 520px;
+      background: var(--card);
+      border-radius: 24px;
+      padding: 40px 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .offline-icon {
+      font-size: 4rem;
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 1.9rem;
+    }
+
+    p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .hint {
+      font-size: 0.95rem;
+    }
+
+    .retry-btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 20px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="offline-card">
+    <div class="offline-icon" aria-hidden="true">📴</div>
+    <h2>Kamu sedang offline</h2>
+    <p>Silakan cek koneksi internet kamu.</p>
+    <p class="hint">Tenang, begitu koneksi kembali normal kamu bisa lanjut pakai aplikasi seperti biasa.</p>
+    <a class="retry-btn" href="/">Coba lagi</a>
+  </main>
+</body>
+</html>
