@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Rupiah Currency Formatting for Amount Inputs
     initializeRupiahFormatting();
+
 });
 
 /**

@@ -1,62 +1,74 @@
-const CACHE_NAME = 'finance-app-v3';
+const CACHE_NAME = 'finance-app-v5';
+
 const urlsToCache = [
-    '/',
-    '/dashboard',
-    '/offline',
-    '/static/css/style.css',
-    '/static/js/script.js'
+  '/',
+  '/dashboard',
+  '/transactions',
+  '/offline',
+  '/static/css/style.css',
+  '/static/js/script.js'
 ];
 
+// 🟢 INSTALL
 self.addEventListener('install', event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
-    );
-    self.skipWaiting();
+  self.skipWaiting();
+
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(urlsToCache);
+    })
+  );
 });
 
+// 🟢 ACTIVATE
 self.addEventListener('activate', event => {
-    event.waitUntil(
-        caches.keys().then(names =>
-            Promise.all(
-                names.map(name => {
-                    if (name !== CACHE_NAME) {
-                        return caches.delete(name);
-                    }
-                })
-            )
-        ).then(() => self.clients.claim())
-    );
+  event.waitUntil(
+    caches.keys().then(names => {
+      return Promise.all(
+        names.map(name => {
+          if (name !== CACHE_NAME) {
+            return caches.delete(name);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
+// 🟢 FETCH (CORE LOGIC)
 self.addEventListener('fetch', event => {
-    if (event.request.method !== 'GET') {
-        return;
-    }
+  if (event.request.method !== 'GET') return;
 
-    event.respondWith(
-        fetch(event.request)
-            .then(response => {
-                if (!response || response.status !== 200 || response.type !== 'basic') {
-                    return response;
-                }
+  event.respondWith(
+    caches.match(event.request, { ignoreSearch: true }).then(cached => {
+      
+      // ✅ kalau ada di cache → langsung pakai
+      if (cached) {
+        return cached;
+      }
 
-                return caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, response.clone());
-                    return response;
-                });
-            })
-            .catch(() => {
-                return caches.match(event.request).then(cached => {
-                    if (cached) {
-                        return cached;
-                    }
+      // 🌐 kalau tidak ada → ambil dari network
+      return fetch(event.request)
+        .then(networkResponse => {
+          // cache response jika valid
+          if (
+            networkResponse &&
+            networkResponse.status === 200 &&
+            event.request.url.startsWith(self.location.origin)
+          ) {
+            const clone = networkResponse.clone();
 
-                    if (event.request.mode === 'navigate') {
-                        return caches.match('/offline');
-                    }
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, clone);
+            });
+          }
 
-                    return Response.error();
-                });
-            })
-    );
+          return networkResponse;
+        })
+        .catch(() => {
+          // 📵 fallback kalau offline
+          return caches.match('/offline');
+        });
+    })
+  );
 });

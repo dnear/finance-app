@@ -273,6 +273,14 @@ def logout():
 def offline():
     return render_template('offline.html')
 
+
+@app.after_request
+def configure_service_worker(response):
+    if request.path == '/static/js/sw.js':
+        response.headers['Service-Worker-Allowed'] = '/'
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
+
 @app.route('/')
 @app.route('/dashboard')
 @login_required
