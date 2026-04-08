@@ -25,6 +25,15 @@
     --theme-btn-bg-hover: rgba(255, 255, 255, 0.25);
     --theme-btn-color: #ffffff;
     --surface-overlay: rgba(255, 255, 255, 0.95);
+    --success-soft: #dcfce7;
+    --success-border: #86efac;
+    --success-text: #166534;
+    --danger-soft: #fee2e2;
+    --danger-border: #fca5a5;
+    --danger-text: #991b1b;
+    --info-soft: #dbeafe;
+    --info-border: #93c5fd;
+    --info-text: #1d4ed8;
 }
 
 [data-theme="dark"],
@@ -57,6 +66,15 @@
     --theme-btn-bg-hover: rgba(255, 255, 255, 0.22);
     --theme-btn-color: #f8fafc;
     --surface-overlay: rgba(30, 41, 59, 0.95);
+    --success-soft: rgba(34, 197, 94, 0.18);
+    --success-border: rgba(34, 197, 94, 0.35);
+    --success-text: #bbf7d0;
+    --danger-soft: rgba(239, 68, 68, 0.18);
+    --danger-border: rgba(248, 113, 113, 0.35);
+    --danger-text: #fecaca;
+    --info-soft: rgba(59, 130, 246, 0.18);
+    --info-border: rgba(96, 165, 250, 0.35);
+    --info-text: #bfdbfe;
 }
 
 /* Google Font Inter */
@@ -340,7 +358,14 @@ body {
     border-radius: 12px;
     font-weight: 500;
     padding: 0.6rem 1.2rem;
+    min-height: 44px;
     transition: all 0.2s;
+}
+
+.btn[disabled],
+.btn.is-loading {
+    opacity: 0.8;
+    cursor: not-allowed;
 }
 .btn-outline-primary,
 .btn-outline-secondary,
@@ -397,6 +422,36 @@ body {
     border-radius: 16px;
     border: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.flash-stack {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.flash-alert {
+    border: 1px solid transparent;
+}
+
+.alert-success.flash-alert {
+    background: var(--success-soft);
+    border-color: var(--success-border);
+    color: var(--success-text);
+}
+
+.alert-danger.flash-alert,
+.alert-error.flash-alert {
+    background: var(--danger-soft);
+    border-color: var(--danger-border);
+    color: var(--danger-text);
+}
+
+.alert-info.flash-alert,
+.alert-warning.flash-alert {
+    background: var(--info-soft);
+    border-color: var(--info-border);
+    color: var(--info-text);
 }
 
 /* Dashboard card saldo */
@@ -609,13 +664,13 @@ body {
     display: none;
 }
 
-.submit-overlay {
+.loading-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: var(--overlay);
+    background: rgba(255,255,255,0.7);
     z-index: 99998;
     display: none;
     align-items: center;
@@ -623,8 +678,209 @@ body {
     backdrop-filter: blur(2px);
 }
 
-.submit-overlay-content {
+.loading-overlay-content {
     text-align: center;
+    background: var(--surface-overlay);
+    padding: 1rem 1.25rem;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+}
+
+.loading-overlay-text {
+    margin-top: 0.75rem;
+    color: var(--text-color);
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.spinner {
+    border: 5px solid #eee;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    100% { transform: rotate(360deg); }
+}
+
+.empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 2.25rem;
+    color: var(--text-muted);
+}
+
+.empty-state-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.empty-state-subtitle {
+    margin-top: 0.35rem;
+    font-size: 0.9rem;
+}
+
+.empty-state-mobile {
+    padding: 2.5rem 1rem;
+}
+
+.pagination-summary-wrap {
+    min-width: 180px;
+}
+
+.pagination-pills {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.pagination-pill,
+.pagination-ellipsis {
+    min-width: 38px;
+    height: 38px;
+    padding: 0 0.75rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.pagination-pill {
+    text-decoration: none;
+    color: var(--text-color);
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+.pagination-pill:hover {
+    background: var(--surface-muted);
+    color: var(--text-color);
+}
+
+.pagination-pill.active {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.2);
+}
+
+.pagination-ellipsis {
+    color: var(--text-muted);
+}
+
+.pagination-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px 0 32px;
+    padding: 0 0.5rem;
+    flex-wrap: wrap;
+}
+
+.pagination-numbers {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.page {
+    min-width: 40px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #1f2a44;
+    color: #fff;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.page:hover {
+    background: #3b82f6;
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.page.active {
+    background: #3b82f6;
+    font-weight: 700;
+    box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
+}
+
+.btn-nav {
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: #111827;
+    color: #fff;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.2;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.btn-nav:hover {
+    background: #2563eb;
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.btn-nav.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.dots {
+    padding: 8px;
+    color: #aaa;
+    font-size: 14px;
+}
+
+@media (max-width: 576px) {
+    .pagination-container {
+        gap: 8px;
+        margin: 16px 0 24px;
+    }
+
+    .pagination-numbers {
+        gap: 4px;
+    }
+
+    .page,
+    .btn-nav {
+        padding: 7px 10px;
+        font-size: 13px;
+    }
+
+    .page {
+        min-width: 36px;
+    }
+
+    .dots {
+        padding: 7px 4px;
+        font-size: 13px;
+    }
 }
 
 .theme-toggle-btn {

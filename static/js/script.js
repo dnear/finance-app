@@ -1,6 +1,8 @@
 // script.js
 document.addEventListener('DOMContentLoaded', function() {
     initializeTheme();
+    initializeLoadingUX();
+    initializePaginationUX();
 
     // Konfirmasi hapus dengan sweet alert style (opsional)
     const deleteLinks = document.querySelectorAll('.delete-confirm');
@@ -8,6 +10,13 @@ document.addEventListener('DOMContentLoaded', function() {
         link.addEventListener('click', function(e) {
             if (!confirm('Apakah Anda yakin ingin menghapus? Data yang dihapus tidak dapat dikembalikan.')) {
                 e.preventDefault();
+                return;
+            }
+
+            const deleteUrl = this.getAttribute('data-delete-url') || this.getAttribute('href');
+            if (deleteUrl) {
+                showLoading('Menghapus data...');
+                window.location.href = deleteUrl;
             }
         });
     });
@@ -20,15 +29,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Auto hide alert setelah 5 detik
+    // Auto hide alert setelah 3 detik
     setTimeout(function() {
-        const alerts = document.querySelectorAll('.alert');
+        const alerts = document.querySelectorAll('.flash-alert[data-auto-hide="true"]');
         alerts.forEach(alert => {
             if (typeof bootstrap !== 'undefined') {
                 bootstrap.Alert.getOrCreateInstance(alert).close();
+            } else {
+                alert.remove();
             }
         });
-    }, 5000);
+    }, 3000);
 
     // Smooth scroll untuk anchor
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -41,18 +52,6 @@ document.addEventListener('DOMContentLoaded', function() {
             target.scrollIntoView({
                 behavior: 'smooth'
             });
-        });
-    });
-
-    // Tambahkan class loading saat submit form (opsional)
-    const forms = document.querySelectorAll('form');
-    forms.forEach(form => {
-        form.addEventListener('submit', function() {
-            const submitBtn = this.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
-                submitBtn.disabled = true;
-            }
         });
     });
 
@@ -194,68 +193,113 @@ function initializeTheme() {
     }
 }
 
-// ===== PAGE LOADING INDICATOR =====
-(function() {
+function showLoading(message) {
+    const overlay = document.getElementById('loading-overlay');
+    const text = overlay ? overlay.querySelector('.loading-overlay-text') : null;
+    if (!overlay) return;
+    if (text) {
+        text.textContent = message || 'Memproses...';
+    }
+    overlay.style.display = 'flex';
+    overlay.setAttribute('aria-hidden', 'false');
+}
+
+function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (!overlay) return;
+    overlay.style.display = 'none';
+    overlay.setAttribute('aria-hidden', 'true');
+}
+
+function initializeLoadingUX() {
     const loader = document.getElementById('page-loader');
-    const overlay = document.getElementById('submit-overlay');
 
-    if (!loader && !overlay) return;
+    hideLoading();
 
-    // Show loading bar on page navigation
-    document.addEventListener('click', function(e) {
-        const link = e.target.closest('a[href]');
-        if (!link) return;
-        const href = link.getAttribute('href');
-        if (!href || href.startsWith('#') || href.startsWith('javascript')) return;
-        if (link.getAttribute('data-bs-toggle')) return;
-        if (link.getAttribute('target') === '_blank') return;
-        if (link.hostname && link.hostname !== location.hostname) return;
+    document.querySelectorAll('a[href]').forEach(function(link) {
+        link.addEventListener('click', function(event) {
+            const href = link.getAttribute('href');
+            const isModifiedClick = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
+            const isHash = !href || href.startsWith('#');
+            const isJavascript = href && href.startsWith('javascript');
+            const isBootstrapTrigger = link.hasAttribute('data-bs-toggle') || link.hasAttribute('data-bs-target');
+            const isNewTab = link.getAttribute('target') === '_blank';
+            const isExternal = link.hostname && link.hostname !== window.location.hostname;
 
-        // Show loading bar
-        if (loader) {
-            loader.style.display = 'block';
-            loader.style.width = '0%';
-            setTimeout(() => { loader.style.width = '70%'; }, 50);
-            setTimeout(() => { loader.style.width = '90%'; }, 500);
-        }
-    });
-
-    // Show spinner on form submission
-    document.addEventListener('submit', function(e) {
-        const form = e.target;
-        // Skip search/filter forms (GET method)
-        if (form.method && form.method.toLowerCase() === 'get') return;
-        if (!overlay) return;
-        overlay.style.display = 'flex';
-        // Change text based on action
-        const submitBtn = form.querySelector('[type="submit"]');
-        if (submitBtn) {
-            const action = submitBtn.textContent.trim();
-            const msgEl = overlay.querySelector('.mt-2');
-            if (action.includes('Hapus') || action.includes('hapus')) {
-                msgEl.textContent = 'Menghapus...';
-            } else if (action.includes('Simpan') || action.includes('simpan')) {
-                msgEl.textContent = 'Menyimpan...';
-            } else {
-                msgEl.textContent = 'Memproses...';
+            if (isModifiedClick || isHash || isJavascript || isBootstrapTrigger || isNewTab || isExternal) {
+                return;
             }
-        }
+
+            if (loader) {
+                loader.style.display = 'block';
+                loader.style.width = '0%';
+                setTimeout(function() { loader.style.width = '65%'; }, 30);
+                setTimeout(function() { loader.style.width = '88%'; }, 180);
+            }
+
+            showLoading('Memuat halaman...');
+        });
     });
 
-    // Hide everything when page is fully loaded
+    document.querySelectorAll('form').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            if (form.dataset.submitting === 'true') {
+                return;
+            }
+
+            form.dataset.submitting = 'true';
+            const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+            const isGet = (form.method || 'get').toLowerCase() === 'get';
+            const originalText = submitBtn ? (submitBtn.dataset.originalText || submitBtn.innerHTML || submitBtn.value) : '';
+
+            if (submitBtn) {
+                submitBtn.dataset.originalText = originalText;
+                submitBtn.disabled = true;
+                submitBtn.classList.add('is-loading');
+                if (submitBtn.tagName === 'INPUT') {
+                    submitBtn.value = 'Processing...';
+                } else {
+                    submitBtn.innerText = 'Processing...';
+                }
+            }
+
+            showLoading(isGet ? 'Menerapkan filter...' : 'Memproses...');
+        });
+    });
+
     window.addEventListener('pageshow', function() {
         if (loader) {
             loader.style.width = '100%';
-            setTimeout(() => {
+            setTimeout(function() {
                 loader.style.display = 'none';
                 loader.style.width = '0%';
-            }, 300);
+            }, 200);
         }
-        if (overlay) overlay.style.display = 'none';
+        hideLoading();
     });
 
-    // Hide overlay if back button pressed
-    window.addEventListener('popstate', function() {
-        if (overlay) overlay.style.display = 'none';
+    window.addEventListener('popstate', hideLoading);
+}
+
+function initializePaginationUX() {
+    const paginationLinks = document.querySelectorAll('[data-pagination-nav] a, .pagination-pill');
+
+    paginationLinks.forEach(function(link) {
+        link.addEventListener('click', function() {
+            try {
+                sessionStorage.setItem('finance-scroll-top', 'true');
+            } catch (error) {
+                // Ignore storage issues
+            }
+        });
     });
-})();
+
+    try {
+        if (sessionStorage.getItem('finance-scroll-top') === 'true') {
+            sessionStorage.removeItem('finance-scroll-top');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    } catch (error) {
+        // Ignore storage issues
+    }
+}

@@ -1,44 +1,53 @@
-const CACHE_NAME = 'finance-app-v1';
+const CACHE_NAME = 'finance-app-v2';
 const urlsToCache = [
     '/',
+    '/dashboard',
+    '/transactions',
     '/static/css/style.css',
-    '/static/js/script.js',
-    '/static/manifest.json',
-    // Add other static assets
+    '/static/js/script.js'
 ];
 
-// Install event
 self.addEventListener('install', event => {
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => {
-                return cache.addAll(urlsToCache);
-            })
+        caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
     );
 });
 
-// Fetch event
-self.addEventListener('fetch', event => {
-    event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Return cached version or fetch from network
-                return response || fetch(event.request);
-            })
-    );
-});
-
-// Activate event
 self.addEventListener('activate', event => {
     event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME) {
-                        return caches.delete(cacheName);
+        caches.keys().then(names =>
+            Promise.all(
+                names.map(name => {
+                    if (name !== CACHE_NAME) {
+                        return caches.delete(name);
                     }
                 })
-            );
+            )
+        )
+    );
+});
+
+self.addEventListener('fetch', event => {
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
+    event.respondWith(
+        caches.match(event.request).then(cached => {
+            const fetchPromise = fetch(event.request)
+                .then(networkResponse => {
+                    if (!networkResponse || networkResponse.status !== 200) {
+                        return networkResponse;
+                    }
+
+                    return caches.open(CACHE_NAME).then(cache => {
+                        cache.put(event.request, networkResponse.clone());
+                        return networkResponse;
+                    });
+                })
+                .catch(() => cached || caches.match('/'));
+
+            return cached || fetchPromise;
         })
     );
 });

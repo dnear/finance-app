@@ -2,9 +2,11 @@ from flask import Flask, render_template, redirect, url_for, request, flash, jso
 from flask_caching import Cache
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
+from collections import defaultdict
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+from urllib.parse import urlencode
 from sqlalchemy.orm import joinedload
 from utils.datetime_utils import WIB, now_wib, to_wib
 from utils.logger import setup_logger
@@ -108,19 +110,64 @@ def load_user(user_id):
 
 
 @cache.memoize(timeout=60)
-def get_dashboard_data(user_id):
+def get_dashboard_data(user_id, selected_month=None, trend_year=None):
     now = normalize_wib_storage(now_wib())
-    from sqlalchemy import func, extract
 
     total_balance = db.session.query(db.func.sum(Wallet.balance)).filter_by(user_id=user_id).scalar() or 0
 
-    expense_data = db.session.query(Category.name, func.sum(Transaction.amount)).\
-        join(Transaction, Transaction.category_id == Category.id).\
-        filter(Transaction.user_id == user_id,
-               Transaction.type == 'expense',
-               extract('month', Transaction.date) == now.month,
-               extract('year', Transaction.date) == now.year).\
-        group_by(Category.id).all()
+    if not selected_month:
+        selected_month = now.strftime('%Y-%m')
+
+    chart_query = Transaction.query.options(
+        joinedload(Transaction.category),
+    ).filter_by(user_id=user_id)
+
+    if selected_month:
+        try:
+            year, month = map(int, selected_month.split('-'))
+            chart_query = chart_query.filter(
+                db.extract('year', Transaction.date) == year,
+                db.extract('month', Transaction.date) == month,
+            )
+        except (TypeError, ValueError):
+            selected_month = now.strftime('%Y-%m')
+            year, month = map(int, selected_month.split('-'))
+            chart_query = chart_query.filter(
+                db.extract('year', Transaction.date) == year,
+                db.extract('month', Transaction.date) == month,
+            )
+
+    transactions = chart_query.order_by(Transaction.date.desc()).all()
+    totals = calculate_transaction_totals(transactions)
+
+    expense_by_category = {}
+    for transaction in transactions:
+        if transaction.type != 'expense':
+            continue
+
+        category_name = transaction.category.name if transaction.category else 'Tanpa Kategori'
+        expense_by_category[category_name] = expense_by_category.get(category_name, 0.0) + float(transaction.amount or 0)
+
+    if not trend_year:
+        trend_year = now.year
+
+    trend_transactions = Transaction.query.filter_by(user_id=user_id).filter(
+        db.extract('year', Transaction.date) == trend_year
+    ).all()
+
+    income_map = defaultdict(float)
+    expense_map = defaultdict(float)
+    for transaction in trend_transactions:
+        month_key = transaction.date.strftime('%m')
+        if transaction.type == 'income':
+            income_map[month_key] += float(transaction.amount or 0)
+        else:
+            expense_map[month_key] += float(transaction.amount or 0)
+
+    trend_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+    month_keys = [str(i).zfill(2) for i in range(1, 13)]
+    income_data = [income_map[month] for month in month_keys]
+    expense_data = [expense_map[month] for month in month_keys]
 
     recent_transactions = Transaction.query.options(
         joinedload(Transaction.category),
@@ -129,9 +176,16 @@ def get_dashboard_data(user_id):
 
     return {
         'total_balance': total_balance,
-        'expense_labels': [d[0] for d in expense_data],
-        'expense_values': [float(d[1]) for d in expense_data],
+        'chart_income': totals['total_income'],
+        'chart_expense': totals['total_expense'],
+        'chart_category_labels': list(expense_by_category.keys()),
+        'chart_category_values': list(expense_by_category.values()),
         'recent_transactions': recent_transactions,
+        'selected_month': selected_month,
+        'trend_year': trend_year,
+        'trend_labels': trend_labels,
+        'trend_income_data': income_data,
+        'trend_expense_data': expense_data,
     }
 
 @app.context_processor
@@ -218,13 +272,29 @@ def logout():
 @app.route('/')
 @login_required
 def dashboard():
-    dashboard_data = get_dashboard_data(current_user.id)
+    selected_month = request.args.get('month')
+    trend_year = request.args.get('trend_year', type=int)
+
+    if not selected_month:
+        selected_month = normalize_wib_storage(now_wib()).strftime('%Y-%m')
+
+    if not trend_year:
+        trend_year = normalize_wib_storage(now_wib()).year
+
+    dashboard_data = get_dashboard_data(current_user.id, selected_month, trend_year)
 
     return render_template('index.html', 
                            total_balance=dashboard_data['total_balance'],
-                           expense_labels=dashboard_data['expense_labels'],
-                           expense_values=dashboard_data['expense_values'],
-                           recent_transactions=dashboard_data['recent_transactions'])
+                           income=dashboard_data['chart_income'],
+                           expense=dashboard_data['chart_expense'],
+                           category_labels=dashboard_data['chart_category_labels'],
+                           category_values=dashboard_data['chart_category_values'],
+                           recent_transactions=dashboard_data['recent_transactions'],
+                           selected_month=dashboard_data['selected_month'],
+                           trend_year=dashboard_data['trend_year'],
+                           trend_labels=dashboard_data['trend_labels'],
+                           trend_income=dashboard_data['trend_income_data'],
+                           trend_expense=dashboard_data['trend_expense_data'])
 
 @app.route('/categories')
 @login_required
@@ -340,6 +410,9 @@ def transactions():
     start_date = request.args.get('start_date')  # expected YYYY-MM-DD
     end_date = request.args.get('end_date')      # expected YYYY-MM-DD
     search = request.args.get('search', '')
+    page = max(request.args.get('page', 1, type=int), 1)
+    per_page = request.args.get('per_page', 10, type=int)
+    per_page = min(max(per_page, 1), 100)
 
     filters = {
         'category_id': category_filter,
@@ -350,19 +423,33 @@ def transactions():
     }
 
     query = get_filtered_transactions(current_user.id, filters)
-
-    page = request.args.get('page', 1, type=int)
     trans = query.order_by(Transaction.date.desc()).paginate(
-        page=page, per_page=30, error_out=False)
+        page=page,
+        per_page=per_page,
+        error_out=False,
+    )
     categories = Category.query.filter_by(user_id=current_user.id).all()
     wallets = Wallet.query.filter_by(user_id=current_user.id).all()
     # Tambahkan dompet bersama yang memiliki izin 'add'
     shared_wallets = SharedWallet.query.filter_by(shared_with_id=current_user.id, permission='add').all()
     shared_wallet_objects = [sw.wallet for sw in shared_wallets]
     all_wallets = wallets + shared_wallet_objects
+    pagination_params = {
+        'category_id': category_filter,
+        'wallet_id': wallet_filter,
+        'start_date': start_date,
+        'end_date': end_date,
+        'search': search,
+        'per_page': per_page,
+    }
+    pagination_query = urlencode({
+        key: value for key, value in pagination_params.items()
+        if value not in (None, '')
+    })
     return render_template('transactions.html', transactions=trans, categories=categories, wallets=all_wallets,
                            category_filter=category_filter, wallet_filter=wallet_filter,
-                           start_date=start_date, end_date=end_date, search=search)
+                           start_date=start_date, end_date=end_date, search=search,
+                           per_page=per_page, pagination_query=pagination_query)
 
 
 @app.route('/report/preview')
@@ -418,7 +505,7 @@ def add_transaction():
             transaction_type=ttype,
             date=trans_date,
         )
-        cache.delete_memoized(get_dashboard_data, current_user.id)
+        cache.delete_memoized(get_dashboard_data)
         logger.info(f"Transaction created: user={current_user.id}, amount={amount}")
         flash('Transaksi disimpan')
     except Exception as exc:
@@ -451,7 +538,7 @@ def edit_transaction(id):
             transaction_type=new_type,
             date=trans_date,
         )
-        cache.delete_memoized(get_dashboard_data, current_user.id)
+        cache.delete_memoized(get_dashboard_data)
         logger.info(f"Transaction updated: user={current_user.id}, transaction_id={id}, amount={new_amount}")
         flash('Transaksi diperbarui')
     except Exception as exc:
@@ -465,7 +552,7 @@ def delete_transaction(id):
     trans = Transaction.query.get_or_404(id)
     try:
         delete_transaction_service(trans, current_user.id)
-        cache.delete_memoized(get_dashboard_data, current_user.id)
+        cache.delete_memoized(get_dashboard_data)
         logger.info(f"Transaction deleted: user={current_user.id}, transaction_id={id}")
         flash('Transaksi dihapus')
     except Exception as exc:
@@ -1080,7 +1167,7 @@ def transfer():
                 fee=fee,
                 description=description,
             )
-            cache.delete_memoized(get_dashboard_data, current_user.id)
+            cache.delete_memoized(get_dashboard_data)
             logger.info(
                 f"Transfer completed: user={current_user.id}, from_wallet={from_wallet_id}, to_wallet={to_wallet_id}, amount={amount}, fee={fee}"
             )

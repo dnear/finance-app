@@ -49,10 +49,11 @@ def get_transactions():
             .paginate(page=page, per_page=per_page, error_out=False)
 
         data = {
+            "items": [_serialize_transaction(transaction) for transaction in pagination.items],
             "total": pagination.total,
             "page": pagination.page,
             "pages": pagination.pages,
-            "data": [_serialize_transaction(transaction) for transaction in pagination.items],
+            "per_page": pagination.per_page,
         }
         return {"status": "success", "data": data}
     except Exception as e:

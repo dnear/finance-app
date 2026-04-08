@@ -9,6 +9,7 @@
         <!-- filter form -->
         <div class="p-3">
             <form class="row g-2 align-items-end" method="get" action="{{ url_for('transactions') }}" id="transactionFilterForm">
+                <input type="hidden" name="per_page" value="{{ per_page }}">
                 <div class="col-12 col-sm-6 col-lg-auto">
                     <label class="form-label">Dompet</label>
                     <select name="wallet_id" class="form-select">
@@ -51,6 +52,15 @@
             </form>
         </div>
         <!-- Desktop View (Table) -->
+        {% if not transactions.items %}
+        <div class="empty-state d-none d-md-flex">
+            <div>
+                <i class="bi bi-inbox d-block mb-2"></i>
+                <div class="empty-state-title">Tidak ada transaksi</div>
+                <div class="empty-state-subtitle">Coba ubah filter atau tambahkan transaksi baru.</div>
+            </div>
+        </div>
+        {% endif %}
         <div class="table-responsive d-none d-md-block">
             <table class="table table-hover align-middle mb-0">
                 <thead>
@@ -76,8 +86,15 @@
                         <td>
                             <div class="d-flex justify-content-center gap-1">
                                 <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}" title="Edit"><i class="bi bi-pencil"></i></button>
-                                <button type="button" class="btn btn-sm btn-danger delete-confirm" title="Hapus" onclick="location.href='{{ url_for('delete_transaction', id=t.id) }}'"><i class="bi bi-trash"></i></button>
+                                <button type="button" class="btn btn-sm btn-danger delete-confirm" title="Hapus" data-delete-url="{{ url_for('delete_transaction', id=t.id) }}"><i class="bi bi-trash"></i></button>
                             </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox fs-4 d-block mb-2"></i>
+                            Tidak ada transaksi untuk filter ini
                         </td>
                     </tr>
                     {% endfor %}
@@ -115,16 +132,19 @@
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#editModal{{ t.id }}"><i class="bi bi-pencil me-2"></i>Edit</button></li>
-                            <li><button class="dropdown-item text-danger delete-confirm" type="button" onclick="location.href='{{ url_for('delete_transaction', id=t.id) }}'"><i class="bi bi-trash me-2"></i>Hapus</button></li>
+                            <li><button class="dropdown-item text-danger delete-confirm" type="button" data-delete-url="{{ url_for('delete_transaction', id=t.id) }}"><i class="bi bi-trash me-2"></i>Hapus</button></li>
                         </ul>
                     </div>
                 </div>
             </div>
             {% endfor %}
-            {% if not transactions %}
-            <div class="p-4 text-center text-muted">
-                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                Belum ada transaksi
+            {% if not transactions.items %}
+            <div class="empty-state empty-state-mobile">
+                <div>
+                    <i class="bi bi-inbox d-block mb-2"></i>
+                    <div class="empty-state-title">Tidak ada transaksi</div>
+                    <div class="empty-state-subtitle">Coba ubah filter atau tambahkan transaksi baru.</div>
+                </div>
             </div>
             {% endif %}
         </div>
@@ -204,7 +224,6 @@
                     Gagal memuat preview laporan
                 </div>
             </div>
-
             <div class="report-preview-footer">
                 <a href="{{ url_for('export_excel') }}" class="btn btn-success" id="previewExportExcel">
                     <i class="bi bi-file-excel"></i> Export Excel
@@ -218,62 +237,36 @@
 </div>
 
 {% if transactions.pages > 1 %}
-<div class="d-flex align-items-center justify-content-between mt-4 mb-5 px-1">
-
-    <!-- Tombol Sebelumnya -->
+{% set query_suffix = '&' ~ pagination_query if pagination_query else '' %}
+<div class="pagination-container" aria-label="Pagination navigation">
     {% if transactions.has_prev %}
-    <a href="?page={{ transactions.prev_num }}
-        {%- if request.args.get('wallet_id') %}&wallet_id={{ request.args.get('wallet_id') }}{% endif %}
-        {%- if request.args.get('category_id') %}&category_id={{ request.args.get('category_id') }}{% endif %}
-        {%- if request.args.get('start_date') %}&start_date={{ request.args.get('start_date') }}{% endif %}
-        {%- if request.args.get('end_date') %}&end_date={{ request.args.get('end_date') }}{% endif %}
-        {%- if request.args.get('search') %}&search={{ request.args.get('search') }}{% endif %}"
-        class="btn btn-outline-primary btn-sm px-3"
-        style="border-radius:20px;">
-        ‹ Sebelumnya
-    </a>
+    <a class="btn-nav" href="?page={{ transactions.prev_num }}{{ query_suffix }}">‹ Sebelumnya</a>
     {% else %}
-    <button class="btn btn-outline-secondary btn-sm px-3"
-        style="border-radius:20px; opacity:0.4;" disabled>
-        ‹ Sebelumnya
-    </button>
+    <span class="btn-nav disabled" aria-disabled="true">‹ Sebelumnya</span>
     {% endif %}
 
-    <!-- Info Halaman -->
-    <div class="text-center">
-        <span class="badge bg-primary px-3 py-2"
-            style="border-radius:20px; font-size:13px;">
-            {{ transactions.page }} / {{ transactions.pages }}
-        </span>
-        <div class="text-muted mt-1" style="font-size:11px;">
-            {{ transactions.total }} transaksi
-        </div>
+    <div class="pagination-numbers">
+        {% for page_num in range(1, transactions.pages + 1) %}
+            {% if page_num == transactions.page %}
+            <span class="page active" aria-current="page">{{ page_num }}</span>
+            {% elif page_num <= 2 or page_num > transactions.pages - 2 or (page_num >= transactions.page - 1 and page_num <= transactions.page + 1) %}
+            <a class="page" href="?page={{ page_num }}{{ query_suffix }}">{{ page_num }}</a>
+            {% elif page_num == 3 or page_num == transactions.pages - 2 %}
+            <span class="dots">...</span>
+            {% endif %}
+        {% endfor %}
     </div>
 
-    <!-- Tombol Selanjutnya -->
     {% if transactions.has_next %}
-    <a href="?page={{ transactions.next_num }}
-        {%- if request.args.get('wallet_id') %}&wallet_id={{ request.args.get('wallet_id') }}{% endif %}
-        {%- if request.args.get('category_id') %}&category_id={{ request.args.get('category_id') }}{% endif %}
-        {%- if request.args.get('start_date') %}&start_date={{ request.args.get('start_date') }}{% endif %}
-        {%- if request.args.get('end_date') %}&end_date={{ request.args.get('end_date') }}{% endif %}
-        {%- if request.args.get('search') %}&search={{ request.args.get('search') }}{% endif %}"
-        class="btn btn-primary btn-sm px-3"
-        style="border-radius:20px;">
-        Selanjutnya ›
-    </a>
+    <a class="btn-nav" href="?page={{ transactions.next_num }}{{ query_suffix }}">Selanjutnya ›</a>
     {% else %}
-    <button class="btn btn-secondary btn-sm px-3"
-        style="border-radius:20px; opacity:0.4;" disabled>
-        Selanjutnya ›
-    </button>
+    <span class="btn-nav disabled" aria-disabled="true">Selanjutnya ›</span>
     {% endif %}
-
 </div>
 {% endif %}
 
 <!-- generate modals outside list to avoid nesting issues -->
-{% for t in transactions %}
+{% for t in transactions.items %}
 <div class="modal fade" id="editModal{{ t.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ t.id }}" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
