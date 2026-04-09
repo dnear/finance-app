@@ -68,6 +68,7 @@ def get_filtered_transactions(user_id, filters):
     wallet_filter = filters.get('wallet_id')
     start_date = filters.get('start_date')
     end_date = filters.get('end_date')
+    tx_type = filters.get('type')
     search = filters.get('search')
 
     query = Transaction.query.options(
@@ -98,6 +99,9 @@ def get_filtered_transactions(user_id, filters):
             query = query.filter(Transaction.date < parse_date_filter(end_date, end_of_day=True))
         except ValueError:
             pass
+
+    if tx_type in {'income', 'expense'}:
+        query = query.filter(Transaction.type == tx_type)
 
     if search:
         search = search.strip()

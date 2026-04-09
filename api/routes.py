@@ -41,6 +41,7 @@ def get_transactions():
             "wallet_id": request.args.get("wallet_id", type=int),
             "start_date": request.args.get("start_date"),
             "end_date": request.args.get("end_date"),
+            "type": (request.args.get("type") or "").strip(),
             "search": request.args.get("search", ""),
         }
 
@@ -134,6 +135,7 @@ def preview_report_api():
             "wallet_id": request.args.get("wallet_id", type=int),
             "start_date": request.args.get("start_date"),
             "end_date": request.args.get("end_date"),
+            "type": (request.args.get("type") or "").strip(),
             "search": request.args.get("search", ""),
         }
 

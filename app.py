@@ -422,6 +422,7 @@ def transactions():
     wallet_filter = request.args.get('wallet_id', type=int)
     start_date = request.args.get('start_date')  # expected YYYY-MM-DD
     end_date = request.args.get('end_date')      # expected YYYY-MM-DD
+    type_filter = (request.args.get('type') or '').strip()
     search = request.args.get('search', '')
     page = max(request.args.get('page', 1, type=int), 1)
     per_page = request.args.get('per_page', 10, type=int)
@@ -432,6 +433,7 @@ def transactions():
         'wallet_id': wallet_filter,
         'start_date': start_date,
         'end_date': end_date,
+        'type': type_filter,
         'search': search,
     }
 
@@ -452,6 +454,7 @@ def transactions():
         'wallet_id': wallet_filter,
         'start_date': start_date,
         'end_date': end_date,
+        'type': type_filter,
         'search': search,
         'per_page': per_page,
     }
@@ -461,7 +464,7 @@ def transactions():
     })
     return render_template('transactions.html', transactions=trans, categories=categories, wallets=all_wallets,
                            category_filter=category_filter, wallet_filter=wallet_filter,
-                           start_date=start_date, end_date=end_date, search=search,
+                           start_date=start_date, end_date=end_date, type_filter=type_filter, search=search,
                            per_page=per_page, pagination_query=pagination_query)
 
 
@@ -473,6 +476,7 @@ def report_preview():
         'wallet_id': request.args.get('wallet_id', type=int),
         'start_date': request.args.get('start_date'),
         'end_date': request.args.get('end_date'),
+        'type': (request.args.get('type') or '').strip(),
         'search': request.args.get('search', ''),
     }
 
@@ -916,6 +920,7 @@ def export_excel():
         'wallet_id': request.args.get('wallet_id', type=int),
         'start_date': request.args.get('start_date'),
         'end_date': request.args.get('end_date'),
+        'type': (request.args.get('type') or '').strip(),
         'search': request.args.get('search', ''),
     }
     transactions = get_filtered_transactions(current_user.id, filters).order_by(Transaction.date.desc()).all()
@@ -970,6 +975,7 @@ def export_pdf():
         'wallet_id': request.args.get('wallet_id', type=int),
         'start_date': request.args.get('start_date'),
         'end_date': request.args.get('end_date'),
+        'type': (request.args.get('type') or '').strip(),
         'search': request.args.get('search', ''),
     }
     start_date = filters['start_date']

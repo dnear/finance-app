@@ -8,39 +8,47 @@
     <div class="card-body p-0">
         <!-- filter form -->
         <div class="p-3">
-            <form class="row g-2 align-items-end" method="get" action="{{ url_for('transactions') }}" id="transactionFilterForm">
+            <form class="transaction-filter-form" method="GET" action="{{ url_for('transactions') }}" id="transactionFilterForm">
                 <input type="hidden" name="per_page" value="{{ per_page }}">
-                <div class="col-12 col-sm-6 col-lg-auto">
-                    <label class="form-label">Dompet</label>
-                    <select name="wallet_id" class="form-select">
-                        <option value="">Semua</option>
-                        {% for wallet in wallets %}
-                            <option value="{{ wallet.id }}" {% if wallet_filter == wallet.id %}selected{% endif %}>{{ wallet.name }}</option>
-                        {% endfor %}
-                    </select>
+                <div class="transaction-filter-field">
+                    <label class="form-label">Tanggal Mulai</label>
+                    <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', start_date or '') }}">
                 </div>
-                <div class="col-12 col-sm-6 col-lg-auto">
+                <div class="transaction-filter-field">
+                    <label class="form-label">Tanggal Selesai</label>
+                    <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', end_date or '') }}">
+                </div>
+                <div class="transaction-filter-field">
                     <label class="form-label">Kategori</label>
                     <select name="category_id" class="form-select">
-                        <option value="">Semua</option>
+                        <option value="">Semua Kategori</option>
                         {% for cat in categories %}
-                            <option value="{{ cat.id }}" {% if category_filter==cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                            <option value="{{ cat.id }}" {% if request.args.get('category_id') == cat.id|string or category_filter == cat.id %}selected{% endif %}>{{ cat.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-6 col-lg-auto">
-                    <label class="form-label">Mulai</label>
-                    <input type="date" name="start_date" class="form-control" value="{{ start_date or '' }}">
+                <div class="transaction-filter-field">
+                    <label class="form-label">Wallet / Akun</label>
+                    <select name="wallet_id" class="form-select">
+                        <option value="">Semua Wallet</option>
+                        {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}" {% if request.args.get('wallet_id') == wallet.id|string or wallet_filter == wallet.id %}selected{% endif %}>{{ wallet.name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
-                <div class="col-6 col-lg-auto">
-                    <label class="form-label">Sampai</label>
-                    <input type="date" name="end_date" class="form-control" value="{{ end_date or '' }}">
+                <div class="transaction-filter-field">
+                    <label class="form-label">Tipe</label>
+                    <select name="type" class="form-select">
+                        <option value="">Semua Tipe</option>
+                        <option value="income" {% if request.args.get('type') == 'income' or type_filter == 'income' %}selected{% endif %}>Income</option>
+                        <option value="expense" {% if request.args.get('type') == 'expense' or type_filter == 'expense' %}selected{% endif %}>Expense</option>
+                    </select>
                 </div>
-                <div class="col-12 col-lg-auto flex-grow-1">
+                <div class="transaction-filter-field transaction-filter-search">
                     <label class="form-label">Deskripsi</label>
                     <input type="text" name="search" class="form-control" value="{{ request.args.get('search', '') }}" placeholder="Cari deskripsi...">
                 </div>
-                <div class="col-12 col-lg-auto">
+                <div class="transaction-filter-actions">
                     <div class="transaction-action-row d-flex flex-nowrap flex-sm-wrap gap-2 w-100">
                         <button type="submit" class="btn btn-primary flex-fill flex-sm-grow-0">Filter</button>
                         <a href="{{ url_for('transactions') }}" class="btn btn-secondary flex-fill flex-sm-grow-0">Reset</a>
@@ -364,6 +372,12 @@
         if (!previewButton || !modal || !filterForm) {
             return;
         }
+
+        filterForm.querySelectorAll('select').forEach(function (element) {
+            element.addEventListener('change', function () {
+                filterForm.submit();
+            });
+        });
 
         function formatCurrency(value, type) {
             const formatted = new Intl.NumberFormat('id-ID').format(Math.abs(value || 0));
