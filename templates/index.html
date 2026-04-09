@@ -1,6 +1,67 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
+<div id="skeleton-dashboard" class="dashboard-skeleton" aria-hidden="true">
+    <div class="row g-3 mb-1">
+        <div class="col-12 col-md-4">
+            <div class="skeleton-panel">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="skeleton skeleton-avatar"></div>
+                    <div class="flex-grow-1">
+                        <div class="skeleton skeleton-text skeleton-title-short mb-2"></div>
+                        <div class="skeleton skeleton-text skeleton-title-long mb-0"></div>
+                    </div>
+                </div>
+                <div class="skeleton skeleton-text skeleton-caption"></div>
+            </div>
+        </div>
+        <div class="col-12 col-md-8">
+            <div class="skeleton-panel">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                    <div class="skeleton skeleton-text skeleton-title-medium"></div>
+                    <div class="skeleton skeleton-input"></div>
+                </div>
+                <div class="skeleton skeleton-chart"></div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-4 g-3">
+        <div class="col-12 col-lg-6">
+            <div class="skeleton-panel">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                    <div class="skeleton skeleton-text skeleton-title-medium"></div>
+                    <div class="skeleton skeleton-input"></div>
+                </div>
+                <div class="skeleton skeleton-chart"></div>
+            </div>
+        </div>
+        <div class="col-12">
+            <div class="skeleton-panel">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                    <div class="skeleton skeleton-text skeleton-title-medium"></div>
+                    <div class="skeleton skeleton-input"></div>
+                </div>
+                <div class="skeleton skeleton-chart skeleton-chart-lg"></div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6">
+            <div class="skeleton-panel">
+                <div class="d-flex justify-content-between align-items-center mb-3 gap-3">
+                    <div class="skeleton skeleton-text skeleton-title-medium"></div>
+                    <div class="skeleton skeleton-button"></div>
+                </div>
+                <div class="skeleton-table">
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="dashboard-content" style="display:none;">
 <div class="row g-3">
     <div class="col-12 col-md-4">
         <div class="card bg-primary text-white h-100">
@@ -129,6 +190,7 @@
         </div>
     </div>
 </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -227,6 +289,18 @@
   }|tojson }}
 </script>
 <script>
+  window.addEventListener('load', function () {
+    const skeleton = document.getElementById('skeleton-dashboard');
+    const content = document.getElementById('dashboard-content');
+
+    if (skeleton && content) {
+      setTimeout(() => {
+        skeleton.style.display = 'none';
+        content.style.display = 'block';
+      }, 400);
+    }
+  });
+
   document.querySelectorAll('input[type="month"], select[name="trend_year"]').forEach(input => {
     input.addEventListener('change', function() {
       this.form.submit();

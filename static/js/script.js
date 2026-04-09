@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const deleteUrl = this.getAttribute('data-delete-url') || this.getAttribute('href');
             if (deleteUrl) {
-                showLoading('Menghapus data...');
+                showLoading();
                 window.location.href = deleteUrl;
             }
         });
@@ -195,15 +195,26 @@ function initializeTheme() {
     }
 }
 
-function showLoading(message) {
+function showLoading() {
     const overlay = document.getElementById('loading-overlay');
-    const text = overlay ? overlay.querySelector('.loading-overlay-text') : null;
     if (!overlay) return;
-    if (text) {
-        text.textContent = message || 'Memproses...';
-    }
     overlay.style.display = 'flex';
     overlay.setAttribute('aria-hidden', 'false');
+}
+
+function removeLoadingArtifacts() {
+    const ids = ['loading', 'skeleton', 'loading-overlay'];
+
+    ids.forEach(function(id) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.remove();
+        }
+    });
+
+    document.querySelectorAll('.loading-overlay').forEach(function(element) {
+        element.remove();
+    });
 }
 
 function hideLoading() {
@@ -217,6 +228,8 @@ function initializeLoadingUX() {
     const loader = document.getElementById('page-loader');
 
     hideLoading();
+
+    window.addEventListener('load', removeLoadingArtifacts);
 
     document.querySelectorAll('a[href]').forEach(function(link) {
         link.addEventListener('click', function(event) {
@@ -239,7 +252,7 @@ function initializeLoadingUX() {
                 setTimeout(function() { loader.style.width = '88%'; }, 180);
             }
 
-            showLoading('Memuat halaman...');
+            showLoading();
         });
     });
 
@@ -257,15 +270,10 @@ function initializeLoadingUX() {
             if (submitBtn) {
                 submitBtn.dataset.originalText = originalText;
                 submitBtn.disabled = true;
-                submitBtn.classList.add('is-loading');
-                if (submitBtn.tagName === 'INPUT') {
-                    submitBtn.value = 'Processing...';
-                } else {
-                    submitBtn.innerText = 'Processing...';
-                }
+                submitBtn.classList.add('is-skeleton-loading');
             }
 
-            showLoading(isGet ? 'Menerapkan filter...' : 'Memproses...');
+            showLoading();
         });
     });
 
@@ -278,6 +286,7 @@ function initializeLoadingUX() {
             }, 200);
         }
         hideLoading();
+        removeLoadingArtifacts();
     });
 
     window.addEventListener('popstate', hideLoading);

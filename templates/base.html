@@ -39,8 +39,11 @@
 
     <div id="loading-overlay" class="loading-overlay" style="display:none;" aria-hidden="true">
         <div class="loading-overlay-content" role="status" aria-live="polite">
-            <div class="spinner"></div>
-            <div class="loading-overlay-text">Memproses...</div>
+            <div class="loading-overlay-skeleton" aria-hidden="true">
+                <div class="skeleton skeleton-text loading-overlay-line loading-overlay-line-lg"></div>
+                <div class="skeleton skeleton-text loading-overlay-line loading-overlay-line-md"></div>
+                <div class="skeleton skeleton-text loading-overlay-line loading-overlay-line-sm"></div>
+            </div>
         </div>
     </div>
 

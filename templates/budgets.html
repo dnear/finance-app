@@ -165,9 +165,16 @@
       </div>
       <div class="modal-body">
         <div id="detailsContent">
-          <div class="text-center">
-            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            Loading...
+          <div class="budget-details-skeleton" aria-hidden="true">
+            <div class="skeleton skeleton-text skeleton-title-medium mb-3"></div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6"><div class="skeleton skeleton-card preview-skeleton-summary"></div></div>
+              <div class="col-md-6"><div class="skeleton skeleton-card preview-skeleton-summary"></div></div>
+            </div>
+            <div class="skeleton skeleton-text skeleton-title-short mb-3"></div>
+            <div class="skeleton skeleton-card preview-skeleton-row"></div>
+            <div class="skeleton skeleton-card preview-skeleton-row"></div>
+            <div class="skeleton skeleton-card preview-skeleton-row"></div>
           </div>
         </div>
       </div>
@@ -201,8 +208,25 @@ function toggleBudgetDetail(id) {
 // Function untuk menampilkan detail transaksi anggaran
 function showBudgetDetails(budgetId, categoryName) {
   const modalElement = document.getElementById('budgetDetailsModal');
+  const detailsContent = document.getElementById('detailsContent');
   modalElement.dataset.budgetId = budgetId; // Store budgetId in modal dataset
   const modal = new bootstrap.Modal(modalElement);
+
+  if (detailsContent) {
+    detailsContent.innerHTML = `
+      <div class="budget-details-skeleton" aria-hidden="true">
+        <div class="skeleton skeleton-text skeleton-title-medium mb-3"></div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><div class="skeleton skeleton-card preview-skeleton-summary"></div></div>
+          <div class="col-md-6"><div class="skeleton skeleton-card preview-skeleton-summary"></div></div>
+        </div>
+        <div class="skeleton skeleton-text skeleton-title-short mb-3"></div>
+        <div class="skeleton skeleton-card preview-skeleton-row"></div>
+        <div class="skeleton skeleton-card preview-skeleton-row"></div>
+        <div class="skeleton skeleton-card preview-skeleton-row"></div>
+      </div>
+    `;
+  }
   
   fetch('/api/budget-details/' + budgetId)
     .then(res => res.json())
@@ -268,11 +292,11 @@ function showBudgetDetails(budgetId, categoryName) {
       html += '</div>';
       html += '</div>';
       
-      document.getElementById('detailsContent').innerHTML = html;
+      detailsContent.innerHTML = html;
     })
     .catch(err => {
       console.error('Error:', err);
-      document.getElementById('detailsContent').innerHTML = '<div class="alert alert-danger">Terjadi kesalahan saat memuat data</div>';
+      detailsContent.innerHTML = '<div class="alert alert-danger">Terjadi kesalahan saat memuat data</div>';
     });
   
   modal.show();
