@@ -5,6 +5,8 @@
     --text-color: #1e293b;
     --muted-text-color: #64748b;
     --border-color: #e2e8f0;
+    --card-bg: #ffffff;
+    --text-main: #111827;
     --table-color: #ffffff;
     --table-header-color: #f1f5f9;
     --button-color: #3b82f6;
@@ -25,6 +27,7 @@
     --theme-btn-bg-hover: rgba(255, 255, 255, 0.25);
     --theme-btn-color: #ffffff;
     --surface-overlay: rgba(255, 255, 255, 0.95);
+    --calendar-icon-filter: invert(0);
     --success-soft: #dcfce7;
     --success-border: #86efac;
     --success-text: #166534;
@@ -49,11 +52,14 @@
     --text-color: #f8fafc;
     --muted-text-color: #94a3b8;
     --border-color: #374151;
+    --card-bg: #1e293b;
+    --text-main: #ffffff;
     --table-color: #1e1e1e;
     --table-header-color: #273244;
     --button-color: #2563eb;
     --button-text-color: #f8fafc;
     --modal-overlay: rgba(0, 0, 0, 0.7);
+    --calendar-icon-filter: invert(1);
 }
 
 [data-theme="dark"] {

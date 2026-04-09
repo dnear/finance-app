@@ -89,7 +89,7 @@
                     <form method="GET" class="filter-form">
                         <input type="hidden" name="trend_year" value="{{ trend_year }}">
                         <label for="category-month-filter" class="filter-label">Bulan</label>
-                        <input id="category-month-filter" type="month" name="month" value="{{ selected_month }}" class="month-input">
+                        <input id="category-month-filter" type="month" name="month" value="{{ selected_month }}" class="chart-filter month-input">
                     </form>
                 </div>
             </div>
@@ -113,7 +113,7 @@
                     <form method="GET" class="filter-form">
                         <input type="hidden" name="trend_year" value="{{ trend_year }}">
                         <label for="income-expense-month-filter" class="filter-label">Bulan</label>
-                        <input id="income-expense-month-filter" type="month" name="month" value="{{ selected_month }}" class="month-input">
+                        <input id="income-expense-month-filter" type="month" name="month" value="{{ selected_month }}" class="chart-filter month-input">
                     </form>
                 </div>
             </div>
@@ -134,7 +134,7 @@
                     <form method="GET" class="filter-form">
                         <input type="hidden" name="month" value="{{ selected_month }}">
                         <label for="trend-year-filter" class="filter-label">Tahun</label>
-                        <select id="trend-year-filter" name="trend_year" class="trend-select">
+                        <select id="trend-year-filter" name="trend_year" class="chart-filter trend-select">
                             {% for y in range(2023, 2031) %}
                                 <option value="{{ y }}" {% if y == trend_year %}selected{% endif %}>{{ y }}{% if y == now_wib().year %} • Sekarang{% endif %}</option>
                             {% endfor %}
@@ -216,26 +216,36 @@
     color: var(--bs-secondary-color, #6b7280);
   }
 
+  .chart-filter {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-main);
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .chart-filter:hover {
+    border-color: var(--text-color);
+  }
+
+  .chart-filter:focus {
+    outline: none;
+    border-color: var(--button-color);
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.15);
+  }
+
   .month-input {
     min-width: 165px;
     padding: 6px 10px;
-    border-radius: 8px;
-    border: none;
-    background: #1f2a44;
-    color: white;
   }
 
   .trend-select {
     min-width: 130px;
     padding: 6px 10px;
-    border-radius: 8px;
-    border: none;
-    background: #1f2a44;
-    color: white;
   }
 
-  .month-input::-webkit-calendar-picker-indicator {
-    filter: invert(1);
+  .chart-filter::-webkit-calendar-picker-indicator {
+    filter: var(--calendar-icon-filter);
   }
 
   .chart-wrapper {
