@@ -35,17 +35,17 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="amount" class="form-label fw-semibold">Jumlah Transfer</label>
+                        <label for="amount_display" class="form-label fw-semibold">Jumlah Transfer</label>
                         <div class="input-group">
-                            <span class="input-group-text">Rp</span>
-                            <input type="number" class="form-control" id="amount" name="amount" min="0" inputmode="numeric" placeholder="0" required>
+                            <input type="hidden" id="amount_raw" name="amount" value="0">
+                            <input type="text" class="form-control" id="amount_display" name="amount_display" data-rupiah data-rupiah-prefix="true" data-raw-target="#amount_raw" inputmode="numeric" autocomplete="off" placeholder="Rp 0" required>
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="fee" class="form-label fw-semibold">Biaya Transfer (opsional)</label>
+                        <label for="fee_display" class="form-label fw-semibold">Biaya Transfer (opsional)</label>
                         <div class="input-group">
-                            <span class="input-group-text">Rp</span>
-                            <input type="number" class="form-control" id="fee" name="fee" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="0">
+                            <input type="hidden" id="fee_raw" name="fee" value="0">
+                            <input type="text" class="form-control" id="fee_display" name="fee_display" data-rupiah data-rupiah-prefix="true" data-raw-target="#fee_raw" inputmode="numeric" autocomplete="off" placeholder="Rp 0">
                         </div>
                         <small class="text-muted">Biaya akan dikurangkan dari dompet asal</small>
                     </div>
@@ -82,17 +82,24 @@ const transferForm = document.querySelector('#transfer-form');
 const transferBtn = document.getElementById('transfer-btn');
 const transferText = document.getElementById('transfer-text');
 const transferLoading = document.getElementById('transfer-loading');
-const fee = document.getElementById('fee');
+const amountRaw = document.getElementById('amount_raw');
+const feeRaw = document.getElementById('fee_raw');
+const feeDisplay = document.getElementById('fee_display');
 
-if (fee) {
-    fee.addEventListener('input', function () {
-        this.value = this.value.replace(/[^0-9]/g, '');
+if (feeDisplay) {
+    feeDisplay.addEventListener('input', function () {
+        this.value = this.value.replace(/[^0-9Rp .]/g, '');
     });
 }
 
 if (transferForm) {
-    transferForm.addEventListener('submit', function () {
-        if (fee && !fee.value) fee.value = 0;
+    transferForm.addEventListener('submit', function (event) {
+        if (amountRaw && !amountRaw.value) {
+            event.preventDefault();
+            return;
+        }
+
+        if (feeRaw && !feeRaw.value) feeRaw.value = 0;
 
         transferBtn.disabled = true;
         transferText.style.display = 'none';

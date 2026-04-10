@@ -94,13 +94,18 @@ function formatRupiah(input) {
     const limitedDigits = digits.slice(0, 15);
     
     // Format with dot thousand separator
-    const formatted = limitedDigits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    
+    const formattedCore = limitedDigits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    const usePrefix = input.dataset.rupiahPrefix === 'true';
+    const formatted = formattedCore ? (usePrefix ? `Rp ${formattedCore}` : formattedCore) : '';
+
     // Update display value
     input.value = formatted;
-    
+
     // Update hidden input with raw number for form submission
-    const hiddenInput = input.previousElementSibling || document.querySelector('input[name="amount_raw"]');
+    const rawTargetSelector = input.dataset.rawTarget;
+    const hiddenInput = rawTargetSelector
+        ? document.querySelector(rawTargetSelector)
+        : (input.previousElementSibling || document.querySelector('input[name="amount_raw"]'));
     if (hiddenInput && hiddenInput.type === 'hidden') {
         hiddenInput.value = limitedDigits;
     }
@@ -127,6 +132,13 @@ function formatRupiah(input) {
  * Initialize Rupiah currency formatting using event delegation
  */
 function initializeRupiahFormatting() {
+    // Format pre-filled values on initial render
+    document.querySelectorAll('input[data-rupiah]').forEach(function (input) {
+        if (input.value) {
+            formatRupiah(input);
+        }
+    });
+
     // Use event delegation to handle all amount inputs
     document.addEventListener('input', function(e) {
         if (e.target.matches('input[data-rupiah]')) {
