@@ -204,13 +204,59 @@ function initializeLoadingUX() {
 
             form.dataset.submitting = 'true';
             const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
-            const isGet = (form.method || 'get').toLowerCase() === 'get';
             const originalText = submitBtn ? (submitBtn.dataset.originalText || submitBtn.innerHTML || submitBtn.value) : '';
 
             if (submitBtn) {
                 submitBtn.dataset.originalText = originalText;
                 submitBtn.disabled = true;
                 submitBtn.classList.add('is-skeleton-loading');
+
+                const btnText = submitBtn.querySelector('#btn-text');
+                const btnLoading = submitBtn.querySelector('#btn-loading');
+                if (btnText && btnLoading) {
+                    btnText.style.display = 'none';
+                    btnLoading.style.display = 'inline-flex';
+                    btnLoading.setAttribute('aria-hidden', 'false');
+                }
+
+                // Fallback reset when submit fails without navigation (e.g. network issue)
+                window.setTimeout(function () {
+                    if (form.dataset.submitting !== 'true') {
+                        return;
+                    }
+
+                    form.dataset.submitting = 'false';
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('is-skeleton-loading');
+
+                    if (btnText && btnLoading) {
+                        btnText.style.display = 'inline';
+                        btnLoading.style.display = 'none';
+                        btnLoading.setAttribute('aria-hidden', 'true');
+                    }
+                }, 15000);
+            }
+        });
+    });
+
+    // Ensure UI state is reset when browser restores page from cache/history
+    window.addEventListener('pageshow', function () {
+        document.querySelectorAll('form[data-submitting="true"]').forEach(function (form) {
+            form.dataset.submitting = 'false';
+            const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+            if (!submitBtn) {
+                return;
+            }
+
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('is-skeleton-loading');
+
+            const btnText = submitBtn.querySelector('#btn-text');
+            const btnLoading = submitBtn.querySelector('#btn-loading');
+            if (btnText && btnLoading) {
+                btnText.style.display = 'inline';
+                btnLoading.style.display = 'none';
+                btnLoading.setAttribute('aria-hidden', 'true');
             }
         });
     });

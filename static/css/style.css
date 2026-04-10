@@ -469,6 +469,36 @@ a,
     opacity: 0.8;
     cursor: not-allowed;
 }
+
+#submit-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+}
+
+#btn-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    border-top-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .btn-outline-primary,
 .btn-outline-secondary,
 .btn-outline-danger,
