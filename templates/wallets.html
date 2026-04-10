@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Dompet{% endblock %}
 {% block content %}
+<div id="skeleton-wallets" aria-hidden="true">
+    <div class="skeleton skeleton-card"></div>
+    <div class="skeleton skeleton-table-row"></div>
+    <div class="skeleton skeleton-table-row"></div>
+</div>
+
+<div id="wallets-content" style="display:none;">
 <div class="row g-3">
     <div class="col-md-4">
         <div class="card">
@@ -245,4 +252,5 @@
     </div>
 </div>
 {% endfor %}
+</div>
 {% endblock %}

@@ -339,18 +339,6 @@
   }|tojson }}
 </script>
 <script>
-  window.addEventListener('load', function () {
-    const skeleton = document.getElementById('skeleton-dashboard');
-    const content = document.getElementById('dashboard-content');
-
-    if (skeleton && content) {
-      setTimeout(() => {
-        skeleton.style.display = 'none';
-        content.style.display = 'block';
-      }, 400);
-    }
-  });
-
   document.querySelectorAll('input[type="month"], select[name="trend_year"]').forEach(input => {
     input.addEventListener('change', function() {
       this.form.submit();

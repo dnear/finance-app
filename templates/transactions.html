@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Transaksi{% endblock %}
 {% block content %}
+<div id="skeleton-transactions" aria-hidden="true">
+    <div class="skeleton skeleton-table-row"></div>
+    <div class="skeleton skeleton-table-row"></div>
+    <div class="skeleton skeleton-table-row"></div>
+</div>
+
+<div id="transactions-content" style="display:none;">
 <div class="card">
     <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap">
         <span><i class="bi bi-list-ul me-2"></i> Daftar Transaksi</span>
@@ -175,6 +182,7 @@
 
             <div class="report-preview-body">
                 <div class="report-preview-loading" id="previewLoadingState">
+                    <div id="modal-skeleton" class="skeleton skeleton-card mb-3"></div>
                     <div class="preview-loading-skeleton" aria-hidden="true">
                         <div class="row g-2 mb-3">
                             <div class="col-12 col-md-4"><div class="skeleton skeleton-card preview-skeleton-summary"></div></div>
@@ -346,6 +354,7 @@
     </div>
 </div>
 {% endfor %}
+</div>
 {% endblock %}
 
 {% block scripts %}

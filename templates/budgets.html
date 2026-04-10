@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Anggaran{% endblock %}
 {% block content %}
+<div id="skeleton-budgets" aria-hidden="true">
+    <div class="skeleton skeleton-card"></div>
+    <div class="skeleton skeleton-card"></div>
+    <div class="skeleton skeleton-table-row"></div>
+    <div class="skeleton skeleton-table-row"></div>
+</div>
+
+<div id="budgets-content" style="display:none;">
 <div class="row">
     <div class="col-md-4">
         <div class="card">
@@ -72,7 +80,7 @@
                             <td>{{ budget.category.name }}</td>
                             <td><strong>Rp {{ "{:,.0f}".format(budget.amount) }}</strong></td>
                             <td class="{% if terpakai > budget.amount %}text-danger{% else %}text-success{% endif %}">
-                                <a href="#" class="text-decoration-none text-reset" onclick="event.stopPropagation(); showBudgetDetails({{ budget.id }}, '{{ budget.category.name }}'); return false;">
+                                <a href="#" class="text-decoration-none text-reset" onclick="event.stopPropagation(); showBudgetDetails({{ budget.id }}); return false;">
                                     Rp {{ "{:,.0f}".format(terpakai) }}
                                 </a>
                             </td>
@@ -188,6 +196,7 @@
   </div>
 </div>
 
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -206,7 +215,7 @@ function toggleBudgetDetail(id) {
 }
 
 // Function untuk menampilkan detail transaksi anggaran
-function showBudgetDetails(budgetId, categoryName) {
+function showBudgetDetails(budgetId) {
   const modalElement = document.getElementById('budgetDetailsModal');
   const detailsContent = document.getElementById('detailsContent');
   modalElement.dataset.budgetId = budgetId; // Store budgetId in modal dataset

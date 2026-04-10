@@ -2,6 +2,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     initializeTheme();
     initializeLoadingUX();
+    initializeGlobalSkeletonLoading();
     initializePaginationUX();
     initializeIOSModalFix();
 
@@ -16,7 +17,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const deleteUrl = this.getAttribute('data-delete-url') || this.getAttribute('href');
             if (deleteUrl) {
-                showLoading();
                 window.location.href = deleteUrl;
             }
         });
@@ -195,67 +195,7 @@ function initializeTheme() {
     }
 }
 
-function showLoading() {
-    const overlay = document.getElementById('loading-overlay');
-    if (!overlay) return;
-    overlay.style.display = 'flex';
-    overlay.setAttribute('aria-hidden', 'false');
-}
-
-function removeLoadingArtifacts() {
-    const ids = ['loading', 'skeleton', 'loading-overlay'];
-
-    ids.forEach(function(id) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.remove();
-        }
-    });
-
-    document.querySelectorAll('.loading-overlay').forEach(function(element) {
-        element.remove();
-    });
-}
-
-function hideLoading() {
-    const overlay = document.getElementById('loading-overlay');
-    if (!overlay) return;
-    overlay.style.display = 'none';
-    overlay.setAttribute('aria-hidden', 'true');
-}
-
 function initializeLoadingUX() {
-    const loader = document.getElementById('page-loader');
-
-    hideLoading();
-
-    window.addEventListener('load', removeLoadingArtifacts);
-
-    document.querySelectorAll('a[href]').forEach(function(link) {
-        link.addEventListener('click', function(event) {
-            const href = link.getAttribute('href');
-            const isModifiedClick = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
-            const isHash = !href || href.startsWith('#');
-            const isJavascript = href && href.startsWith('javascript');
-            const isBootstrapTrigger = link.hasAttribute('data-bs-toggle') || link.hasAttribute('data-bs-target');
-            const isNewTab = link.getAttribute('target') === '_blank';
-            const isExternal = link.hostname && link.hostname !== window.location.hostname;
-
-            if (isModifiedClick || isHash || isJavascript || isBootstrapTrigger || isNewTab || isExternal) {
-                return;
-            }
-
-            if (loader) {
-                loader.style.display = 'block';
-                loader.style.width = '0%';
-                setTimeout(function() { loader.style.width = '65%'; }, 30);
-                setTimeout(function() { loader.style.width = '88%'; }, 180);
-            }
-
-            showLoading();
-        });
-    });
-
     document.querySelectorAll('form').forEach(function(form) {
         form.addEventListener('submit', function() {
             if (form.dataset.submitting === 'true') {
@@ -272,24 +212,22 @@ function initializeLoadingUX() {
                 submitBtn.disabled = true;
                 submitBtn.classList.add('is-skeleton-loading');
             }
-
-            showLoading();
         });
     });
+}
 
-    window.addEventListener('pageshow', function() {
-        if (loader) {
-            loader.style.width = '100%';
-            setTimeout(function() {
-                loader.style.display = 'none';
-                loader.style.width = '0%';
-            }, 200);
-        }
-        hideLoading();
-        removeLoadingArtifacts();
+function initializeGlobalSkeletonLoading() {
+    window.addEventListener('load', function () {
+        setTimeout(function () {
+            document.querySelectorAll("[id^='skeleton']").forEach(function (element) {
+                element.style.display = 'none';
+            });
+
+            document.querySelectorAll("[id$='content']").forEach(function (element) {
+                element.style.display = 'block';
+            });
+        }, 300);
     });
-
-    window.addEventListener('popstate', hideLoading);
 }
 
 function initializePaginationUX() {
