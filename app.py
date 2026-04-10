@@ -296,6 +296,37 @@ def dashboard():
 
     dashboard_data = get_dashboard_data(current_user.id, selected_month, trend_year)
 
+    total_income = float(dashboard_data.get('chart_income') or 0)
+    total_expense = float(dashboard_data.get('chart_expense') or 0)
+    recent_transactions = dashboard_data.get('recent_transactions') or []
+    category_labels = dashboard_data.get('chart_category_labels') or []
+    category_values = dashboard_data.get('chart_category_values') or []
+
+    smart_insight = "Catat transaksi untuk insight"
+    if recent_transactions or total_income > 0 or total_expense > 0:
+        smart_insight = "Saldo masih stabil"
+
+        top_expense_category = None
+        if category_values:
+            top_index = max(range(len(category_values)), key=lambda idx: float(category_values[idx] or 0))
+            if float(category_values[top_index] or 0) > 0:
+                top_expense_category = category_labels[top_index]
+
+        transfer_total = sum(
+            float(value or 0)
+            for label, value in zip(category_labels, category_values)
+            if 'transfer' in str(label or '').lower()
+        )
+
+        if total_expense > total_income:
+            smart_insight = "Pengeluaran melebihi pemasukan"
+        elif top_expense_category == "Belanja":
+            smart_insight = "Belanja mendominasi pengeluaran"
+        elif transfer_total > 0:
+            smart_insight = "Transfer cukup sering bulan ini"
+        elif len(recent_transactions) >= 5 and total_expense > (total_income * 0.7):
+            smart_insight = "Pengeluaran harian cukup tinggi"
+
     return render_template('index.html', 
                            total_balance=dashboard_data['total_balance'],
                            income=dashboard_data['chart_income'],
@@ -307,7 +338,8 @@ def dashboard():
                            trend_year=dashboard_data['trend_year'],
                            trend_labels=dashboard_data['trend_labels'],
                            trend_income=dashboard_data['trend_income_data'],
-                           trend_expense=dashboard_data['trend_expense_data'])
+                           trend_expense=dashboard_data['trend_expense_data'],
+                           smart_insight=smart_insight)
 
 @app.route('/categories')
 @login_required
