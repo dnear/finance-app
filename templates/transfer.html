@@ -15,7 +15,7 @@
                 <i class="bi bi-arrow-left-right me-2"></i>Transfer Antar Dompet
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" id="transfer-form">
                     <div class="mb-3">
                         <label for="from_wallet" class="form-label fw-semibold">Dari Dompet</label>
                         <select class="form-select" id="from_wallet" name="from_wallet" required>
@@ -35,18 +35,17 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="amount_display" class="form-label fw-semibold">Jumlah Transfer</label>
+                        <label for="amount" class="form-label fw-semibold">Jumlah Transfer</label>
                         <div class="input-group">
                             <span class="input-group-text">Rp</span>
-                            <input type="hidden" name="amount" value="">
-                            <input type="text" class="form-control" id="amount_display" name="amount_display" data-rupiah inputmode="numeric" placeholder="0" required>
+                            <input type="number" class="form-control" id="amount" name="amount" min="0" inputmode="numeric" placeholder="0" required>
                         </div>
                     </div>
                     <div class="mb-3">
                         <label for="fee" class="form-label fw-semibold">Biaya Transfer (opsional)</label>
                         <div class="input-group">
                             <span class="input-group-text">Rp</span>
-                            <input type="number" class="form-control" id="fee" name="fee" value="0" min="0" step="0.01" placeholder="0">
+                            <input type="number" class="form-control" id="fee" name="fee" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="0">
                         </div>
                         <small class="text-muted">Biaya akan dikurangkan dari dompet asal</small>
                     </div>
@@ -54,7 +53,10 @@
                         <label for="description" class="form-label fw-semibold">Deskripsi (opsional)</label>
                         <input type="text" class="form-control" id="description" name="description" placeholder="Misal: Transfer bulanan">
                     </div>
-                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send"></i> Transfer</button>
+                    <button type="submit" id="transfer-btn" class="btn btn-primary w-100">
+                        <span id="transfer-text"><i class="bi bi-send"></i> Transfer</span>
+                        <span id="transfer-loading" style="display:none;">⏳ Memproses...</span>
+                    </button>
                 </form>
             </div>
         </div>
@@ -75,5 +77,27 @@ document.getElementById('from_wallet').addEventListener('change', function() {
         }
     });
 });
+
+const transferForm = document.querySelector('#transfer-form');
+const transferBtn = document.getElementById('transfer-btn');
+const transferText = document.getElementById('transfer-text');
+const transferLoading = document.getElementById('transfer-loading');
+const fee = document.getElementById('fee');
+
+if (fee) {
+    fee.addEventListener('input', function () {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+}
+
+if (transferForm) {
+    transferForm.addEventListener('submit', function () {
+        if (fee && !fee.value) fee.value = 0;
+
+        transferBtn.disabled = true;
+        transferText.style.display = 'none';
+        transferLoading.style.display = 'inline';
+    });
+}
 </script>
 {% endblock %}
