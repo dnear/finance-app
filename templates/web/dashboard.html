@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Web{% endblock %}
+
+{% block content %}
+<div class="container-fluid dashboard-web">
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+      <div class="card h-100 shadow-sm border-0">
+        <div class="card-body">
+          <h6 class="text-muted mb-2">Total Saldo</h6>
+          <h3 class="mb-2">Rp {{ "{:,.0f}".format(total_balance) }}</h3>
+          <div class="small text-muted">💡 {{ smart_insight|default('Catat transaksi untuk insight') }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card h-100 shadow-sm border-0">
+        <div class="card-body">
+          <h6 class="text-muted mb-2">Pemasukan Bulan Ini</h6>
+          <h4 class="text-success mb-0">Rp {{ "{:,.0f}".format(income|default(0)) }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card h-100 shadow-sm border-0">
+        <div class="card-body">
+          <h6 class="text-muted mb-2">Pengeluaran Bulan Ini</h6>
+          <h4 class="text-danger mb-0">Rp {{ "{:,.0f}".format(expense|default(0)) }}</h4>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-xl-7">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-pie-chart me-2"></i>Pengeluaran per Kategori</span>
+          <form method="GET" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="trend_year" value="{{ trend_year }}">
+            <input type="month" name="month" value="{{ selected_month }}" class="form-control form-control-sm web-filter-input">
+          </form>
+        </div>
+        <div class="card-body chart-body-lg">
+          <canvas id="categoryChartWeb"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-5">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-bar-chart me-2"></i>Pemasukan vs Pengeluaran</span>
+          <form method="GET" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="trend_year" value="{{ trend_year }}">
+            <input type="month" name="month" value="{{ selected_month }}" class="form-control form-control-sm web-filter-input">
+          </form>
+        </div>
+        <div class="card-body chart-body-lg">
+          <canvas id="incomeExpenseChartWeb"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-8">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-graph-up-arrow me-2"></i>Tren Keuangan Tahunan</span>
+          <form method="GET" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <select name="trend_year" class="form-select form-select-sm web-filter-input">
+              {% for y in range(2023, 2031) %}
+                <option value="{{ y }}" {% if y == trend_year %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </form>
+        </div>
+        <div class="card-body chart-body-xl">
+          <canvas id="trendChartWeb"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-header bg-transparent">
+          <i class="bi bi-activity me-2"></i>Distribusi Arus Kas
+        </div>
+        <div class="card-body chart-body-xl">
+          <canvas id="flowChartWeb"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-clock-history me-2"></i>Transaksi Terbaru</span>
+          <a href="{{ url_for('transactions') }}" class="btn btn-sm btn-primary">Lihat Semua</a>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-striped mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Deskripsi</th>
+                  <th>Kategori</th>
+                  <th>Dompet</th>
+                  <th>Tipe</th>
+                  <th class="text-end">Jumlah</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in recent_transactions %}
+                <tr>
+                  <td>{{ to_wib(t.date).strftime('%d/%m/%Y %H:%M') }}</td>
+                  <td>{{ t.description|truncate(36) }}</td>
+                  <td>{{ t.category.name }}</td>
+                  <td>{{ t.wallet.name }}</td>
+                  <td>
+                    <span class="badge {{ 'bg-success' if t.type=='income' else 'bg-danger' }}">
+                      {{ 'Pemasukan' if t.type=='income' else 'Pengeluaran' }}
+                    </span>
+                  </td>
+                  <td class="text-end {{ 'text-success' if t.type=='income' else 'text-danger' }}">
+                    Rp {{ "{:,.0f}".format(t.amount) }}
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="6" class="text-center py-4">Belum ada transaksi</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .dashboard-web .web-filter-input { max-width: 180px; }
+  .chart-body-lg { min-height: 330px; }
+  .chart-body-xl { min-height: 360px; }
+</style>
+
+<script id="dashboard-chart-data-web" type="application/json">
+  {{ {
+    'income': income|default(0),
+    'expense': expense|default(0),
+    'categoryLabels': category_labels|default([]),
+    'categoryValues': category_values|default([]),
+    'trendLabels': trend_labels|default([]),
+    'trendIncome': trend_income|default([]),
+    'trendExpense': trend_expense|default([])
+  }|tojson }}
+</script>
+
+<script>
+  document.querySelectorAll('input[type="month"], select[name="trend_year"]').forEach(input => {
+    input.addEventListener('change', function() { this.form.submit(); });
+  });
+
+  const webData = JSON.parse(document.getElementById('dashboard-chart-data-web').textContent);
+  const fmt = new Intl.NumberFormat('id-ID');
+  const income = webData.income || 0;
+  const expense = webData.expense || 0;
+  const categoryLabels = webData.categoryLabels || [];
+  const categoryValues = webData.categoryValues || [];
+  const trendLabels = webData.trendLabels || [];
+  const trendIncome = webData.trendIncome || [];
+  const trendExpense = webData.trendExpense || [];
+
+  new Chart(document.getElementById('incomeExpenseChartWeb'), {
+    type: 'bar',
+    data: {
+      labels: ['Income', 'Expense'],
+      datasets: [{
+        data: [income, expense],
+        backgroundColor: ['#16a34a', '#dc2626'],
+        borderRadius: 8,
+        maxBarThickness: 80
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { callback: v => 'Rp ' + fmt.format(v) }, beginAtZero: true }
+      }
+    }
+  });
+
+  new Chart(document.getElementById('categoryChartWeb'), {
+    type: 'doughnut',
+    data: {
+      labels: categoryLabels.length ? categoryLabels : ['Belum ada data'],
+      datasets: [{
+        data: categoryValues.length ? categoryValues : [1],
+        backgroundColor: categoryValues.length
+          ? ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
+          : ['#cbd5e1']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'right' } }
+    }
+  });
+
+  new Chart(document.getElementById('trendChartWeb'), {
+    type: 'line',
+    data: {
+      labels: trendLabels.length ? trendLabels : ['Belum ada data'],
+      datasets: [
+        {
+          label: 'Income',
+          data: trendLabels.length ? trendIncome : [0],
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22, 163, 74, 0.15)',
+          fill: true,
+          tension: 0.35
+        },
+        {
+          label: 'Expense',
+          data: trendLabels.length ? trendExpense : [0],
+          borderColor: '#dc2626',
+          backgroundColor: 'rgba(220, 38, 38, 0.15)',
+          fill: true,
+          tension: 0.35
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        y: { ticks: { callback: v => 'Rp ' + fmt.format(v) }, beginAtZero: true }
+      },
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  new Chart(document.getElementById('flowChartWeb'), {
+    type: 'polarArea',
+    data: {
+      labels: ['Pemasukan', 'Pengeluaran', 'Selisih'],
+      datasets: [{
+        data: [income, expense, Math.max(income - expense, 0)],
+        backgroundColor: ['rgba(22,163,74,.65)', 'rgba(220,38,38,.65)', 'rgba(59,130,246,.65)']
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+</script>
+{% endblock %}

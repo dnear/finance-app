@@ -158,21 +158,31 @@ def update_transaction(transaction, user_id, wallet_id, amount, category_id, des
         raise ValueError('Anda tidak memiliki akses')
 
     try:
-        old_wallet = Wallet.query.get(transaction.wallet_id)
-        revert_transaction_effect(old_wallet, transaction.amount, transaction.type)
+        # Selalu ambil ulang transaksi lama agar kalkulasi edit konsisten.
+        old_tx = Transaction.query.get(transaction.id)
+        if not old_tx:
+            raise ValueError('Transaksi tidak ditemukan')
 
+        # 1) Revert efek transaksi lama terlebih dulu.
+        old_wallet = Wallet.query.get(old_tx.wallet_id)
+        if not old_wallet:
+            raise ValueError('Dompet lama tidak ditemukan')
+        revert_transaction_effect(old_wallet, old_tx.amount, old_tx.type)
+
+        # 2) Ambil dompet tujuan (bisa sama / bisa berbeda), lalu apply nilai baru.
         new_wallet = get_wallet_for_transaction(user_id, wallet_id, require_add_permission=True)
+        apply_transaction_effect(new_wallet, amount, transaction_type)
 
-        transaction.amount = amount
-        transaction.description = description
-        transaction.type = transaction_type
-        transaction.category_id = category_id
-        transaction.wallet_id = wallet_id
-        transaction.date = date
+        # 3) Simpan data transaksi terbaru.
+        old_tx.amount = amount
+        old_tx.description = description
+        old_tx.type = transaction_type
+        old_tx.category_id = category_id
+        old_tx.wallet_id = wallet_id
+        old_tx.date = date
 
-        apply_transaction_effect(new_wallet, transaction.amount, transaction.type)
         db.session.commit()
-        return transaction
+        return old_tx
     except Exception:
         db.session.rollback()
         raise

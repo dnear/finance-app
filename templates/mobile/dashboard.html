@@ -1,0 +1,491 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div id="skeleton-dashboard" class="dashboard-skeleton" aria-hidden="true">
+    <div class="row g-3 mb-1">
+        <div class="col-12 col-md-4">
+            <div class="skeleton-panel">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="skeleton skeleton-avatar"></div>
+                    <div class="flex-grow-1">
+                        <div class="skeleton skeleton-text skeleton-title-short mb-2"></div>
+                        <div class="skeleton skeleton-text skeleton-title-long mb-0"></div>
+                    </div>
+                </div>
+                <div class="skeleton skeleton-text skeleton-caption"></div>
+            </div>
+        </div>
+        <div class="col-12 col-md-8">
+            <div class="skeleton-panel">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                    <div class="skeleton skeleton-text skeleton-title-medium"></div>
+                    <div class="skeleton skeleton-input"></div>
+                </div>
+                <div class="skeleton skeleton-chart"></div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-4 g-3">
+        <div class="col-12 col-lg-6">
+            <div class="skeleton-panel">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                    <div class="skeleton skeleton-text skeleton-title-medium"></div>
+                    <div class="skeleton skeleton-input"></div>
+                </div>
+                <div class="skeleton skeleton-chart"></div>
+            </div>
+        </div>
+        <div class="col-12">
+            <div class="skeleton-panel">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                    <div class="skeleton skeleton-text skeleton-title-medium"></div>
+                    <div class="skeleton skeleton-input"></div>
+                </div>
+                <div class="skeleton skeleton-chart skeleton-chart-lg"></div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6">
+            <div class="skeleton-panel">
+                <div class="d-flex justify-content-between align-items-center mb-3 gap-3">
+                    <div class="skeleton skeleton-text skeleton-title-medium"></div>
+                    <div class="skeleton skeleton-button"></div>
+                </div>
+                <div class="skeleton-table">
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="dashboard-content" class="dashboard-container" style="display:none;">
+<div class="row g-3">
+    <div class="col-12 col-md-4">
+        <div class="card bg-primary text-white balance-card">
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-wallet2 fs-1 me-3"></i>
+                    <div>
+                        <h6 class="text-white-50 mb-0">Total Saldo</h6>
+                        <h2 class="card-title mb-0">Rp {{ "{:,.0f}".format(total_balance) }}</h2>
+                    </div>
+                </div>
+                <div class="mt-auto">
+                    <small class="text-white-50"><i class="bi bi-arrow-up-short"></i> Update terakhir hari ini</small>
+                </div>
+            </div>
+        </div>
+        <div class="smart-insight-card" role="status" aria-live="polite">
+            💡 {{ smart_insight|default('Catat transaksi untuk insight') }}
+        </div>
+    </div>
+    <div class="col-12 col-md-8">
+        <div class="card chart-container h-100">
+            <div class="card-header bg-transparent">
+                <div class="header-row">
+                    <div>
+                        <i class="bi bi-pie-chart me-2"></i> Pengeluaran per Kategori
+                    </div>
+                    <form method="GET" class="filter-form">
+                        <input type="hidden" name="trend_year" value="{{ trend_year }}">
+                        <label for="category-month-filter" class="filter-label">Bulan</label>
+                        <input id="category-month-filter" type="month" name="month" value="{{ selected_month }}" class="chart-filter month-input">
+                    </form>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrapper">
+                    <canvas id="categoryChart" class="category-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4 g-3">
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-transparent">
+                <div class="header-row">
+                    <div>
+                        <i class="bi bi-bar-chart me-2"></i> Perbandingan Pemasukan & Pengeluaran
+                    </div>
+                    <form method="GET" class="filter-form">
+                        <input type="hidden" name="trend_year" value="{{ trend_year }}">
+                        <label for="income-expense-month-filter" class="filter-label">Bulan</label>
+                        <input id="income-expense-month-filter" type="month" name="month" value="{{ selected_month }}" class="chart-filter month-input">
+                    </form>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrapper chart-wrapper-lg">
+                    <canvas id="incomeExpenseChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="card h-100">
+            <div class="card-header bg-transparent">
+                <div class="header-row">
+                    <div>
+                        <i class="bi bi-graph-up-arrow me-2"></i> Tren Keuangan Tahunan
+                    </div>
+                    <form method="GET" class="filter-form">
+                        <input type="hidden" name="month" value="{{ selected_month }}">
+                        <label for="trend-year-filter" class="filter-label">Tahun</label>
+                        <select id="trend-year-filter" name="trend_year" class="chart-filter trend-select">
+                            {% for y in range(2023, 2031) %}
+                                <option value="{{ y }}" {% if y == trend_year %}selected{% endif %}>{{ y }}{% if y == now_wib().year %} • Sekarang{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrapper chart-wrapper-lg">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history me-2"></i> Transaksi Terbaru</span>
+                <a href="{{ url_for('transactions') }}" class="btn btn-sm btn-primary">Lihat Semua <i class="bi bi-arrow-right"></i></a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Tanggal</th>
+                                <th>Deskripsi</th>
+                                <th>Jumlah</th>
+                                <th>Tipe</th>
+                                <th>Kategori</th>
+                                <th>Dompet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in recent_transactions %}
+                            <tr>
+                                <td>{{ to_wib(t.date).strftime('%d/%m %H:%M') }}</td>
+                                <td>{{ t.description|truncate(20) }}</td>
+                                <td class="{{ 'income' if t.type=='income' else 'expense' }}">Rp {{ "{:,.0f}".format(t.amount) }}</td>
+                                <td><span class="badge {{ 'bg-success' if t.type=='income' else 'bg-danger' }}">{{ 'Pemasukan' if t.type=='income' else 'Pengeluaran' }}</span></td>
+                                <td>{{ t.category.name }}</td>
+                                <td>{{ t.wallet.name }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4">Belum ada transaksi</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .filter-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .filter-label {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color, #6b7280);
+  }
+
+  .chart-filter {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-main);
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .chart-filter:hover {
+    border-color: var(--text-color);
+  }
+
+  .chart-filter:focus {
+    outline: none;
+    border-color: var(--button-color);
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.15);
+  }
+
+  .month-input {
+    min-width: 165px;
+    padding: 6px 10px;
+  }
+
+  .trend-select {
+    min-width: 130px;
+    padding: 6px 10px;
+  }
+
+  .chart-filter::-webkit-calendar-picker-indicator {
+    filter: var(--calendar-icon-filter);
+  }
+
+  .chart-wrapper {
+    position: relative;
+    min-height: 260px;
+  }
+
+  .chart-wrapper-lg {
+    min-height: 300px;
+  }
+
+  .dashboard-container {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .balance-card {
+    margin-bottom: 12px;
+  }
+
+  .smart-insight-card {
+    margin-top: 10px;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    border-radius: 14px;
+    background: var(--card-bg);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.45;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    position: relative;
+    z-index: 2;
+  }
+
+  .chart-container,
+  .category-chart {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (max-width: 576px) {
+    .header-row {
+      align-items: flex-start;
+    }
+
+    .filter-form {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .month-input {
+      min-width: 140px;
+      max-width: 170px;
+      font-size: 0.875rem;
+    }
+
+    .trend-select {
+      min-width: 120px;
+      font-size: 0.875rem;
+    }
+
+    .chart-wrapper {
+      min-height: 220px;
+    }
+
+    .chart-wrapper-lg {
+      min-height: 260px;
+    }
+
+    .smart-insight-card {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+  }
+</style>
+<script id="dashboard-chart-data" type="application/json">
+  {{ {
+    'income': income|default(0),
+    'expense': expense|default(0),
+    'categoryLabels': category_labels|default([]),
+    'categoryValues': category_values|default([]),
+    'trendLabels': trend_labels|default([]),
+    'trendIncome': trend_income|default([]),
+    'trendExpense': trend_expense|default([])
+  }|tojson }}
+</script>
+<script>
+  document.querySelectorAll('input[type="month"], select[name="trend_year"]').forEach(input => {
+    input.addEventListener('change', function() {
+      this.form.submit();
+    });
+  });
+
+  const currencyFormatter = new Intl.NumberFormat('id-ID');
+  const dashboardChartData = JSON.parse(document.getElementById('dashboard-chart-data').textContent);
+  const chartIncome = dashboardChartData.income || 0;
+  const chartExpense = dashboardChartData.expense || 0;
+  const categoryLabels = dashboardChartData.categoryLabels || [];
+  const categoryValues = dashboardChartData.categoryValues || [];
+  const trendLabels = dashboardChartData.trendLabels || [];
+  const trendIncomeData = dashboardChartData.trendIncome || [];
+  const trendExpenseData = dashboardChartData.trendExpense || [];
+
+  new Chart(document.getElementById('incomeExpenseChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Income', 'Expense'],
+      datasets: [{
+        label: 'Amount',
+        data: [chartIncome, chartExpense],
+        backgroundColor: ['#10b981', '#ef4444'],
+        borderRadius: 8,
+        maxBarThickness: 64
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return 'Rp ' + currencyFormatter.format(value);
+            }
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'bottom'
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return 'Rp ' + currencyFormatter.format(context.parsed.y);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  new Chart(document.getElementById('categoryChart'), {
+    type: 'pie',
+    data: {
+      labels: categoryLabels.length ? categoryLabels : ['Belum ada data'],
+      datasets: [{
+        data: categoryValues.length ? categoryValues : [1],
+        backgroundColor: categoryValues.length
+          ? ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
+          : ['#cbd5e1'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              if (!categoryValues.length) {
+                return 'Belum ada transaksi pengeluaran';
+              }
+
+              return context.label + ': Rp ' + currencyFormatter.format(context.parsed);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: trendLabels.length ? trendLabels : ['Belum ada data'],
+      datasets: [
+        {
+          label: 'Income',
+          data: trendLabels.length ? trendIncomeData : [0],
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          tension: 0.4,
+          fill: false,
+          pointRadius: 3,
+          pointHoverRadius: 5
+        },
+        {
+          label: 'Expense',
+          data: trendLabels.length ? trendExpenseData : [0],
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+          tension: 0.4,
+          fill: false,
+          pointRadius: 3,
+          pointHoverRadius: 5
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return 'Rp ' + currencyFormatter.format(value);
+            }
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'bottom'
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': Rp ' + currencyFormatter.format(context.parsed.y);
+            }
+          }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}
