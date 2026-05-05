@@ -3,11 +3,12 @@ from flask_caching import Cache
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, date
 from dotenv import load_dotenv
 import os
 from urllib.parse import urlencode
 from sqlalchemy.orm import joinedload
+from dateutil.relativedelta import relativedelta
 from utils.datetime_utils import WIB, now_wib, to_wib
 from utils.logger import setup_logger
 from api import api_bp
@@ -217,6 +218,24 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 with app.app_context():
     db.create_all()
+
+    # Backward-compatible schema update for existing DBs (safe, no destructive migration)
+    if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite:///'):
+        columns = [row[1] for row in db.session.execute(db.text("PRAGMA table_info(budget)"))]
+        if 'start_date' not in columns:
+            db.session.execute(db.text("ALTER TABLE budget ADD COLUMN start_date DATE"))
+            db.session.commit()
+
+
+def _get_budget_period(budget):
+    start = budget.start_date
+    if not start:
+        if budget.year and budget.month:
+            start = date(int(budget.year), int(budget.month), 1)
+        else:
+            start = date.today()
+    end = start + relativedelta(months=1)
+    return start, end
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -612,85 +631,88 @@ def delete_transaction(id):
 @app.route('/budgets')
 @login_required
 def budgets():
-    from sqlalchemy import func, extract
-    now = normalize_wib_storage(now_wib())
-    month = request.args.get('month', now.month, type=int)
-    year = request.args.get('year', now.year, type=int)
-    budgets = Budget.query.filter_by(user_id=current_user.id, month=month, year=year).all()
+    budgets = Budget.query.filter_by(user_id=current_user.id).order_by(Budget.start_date.desc(), Budget.id.desc()).all()
     categories = Category.query.filter_by(user_id=current_user.id).all()
-    
-    # Hitung terpakai untuk setiap budget
+
     budget_data = []
     for budget in budgets:
-        terpakai = db.session.query(func.sum(Transaction.amount)).\
-            filter(Transaction.user_id == current_user.id,
-                   Transaction.category_id == budget.category_id,
-                   Transaction.type == 'expense',
-                   extract('month', Transaction.date) == month,
-                   extract('year', Transaction.date) == year).scalar() or 0
+        start_date, end_date = _get_budget_period(budget)
+        transactions = Transaction.query.filter(
+            Transaction.user_id == current_user.id,
+            Transaction.category_id == budget.category_id,
+            Transaction.date >= start_date,
+            Transaction.date < end_date,
+        ).all()
+        total_expense = sum(t.amount for t in transactions if t.type == 'expense')
+
         budget_data.append({
             'budget': budget,
-            'terpakai': float(terpakai)
+            'terpakai': float(total_expense),
+            'start_date': start_date,
+            'end_date': end_date,
         })
-    
-    return render_template('budgets.html', budget_data=budget_data, categories=categories, month=month, year=year)
+
+    return render_template('budgets.html', budget_data=budget_data, categories=categories)
 
 @app.route('/budget/add', methods=['POST'])
 @login_required
 def add_budget():
     cat_id = int(request.form['category_id'])
-    month = int(request.form['month'])
-    year = int(request.form['year'])
+    start_date_raw = request.form.get('start_date')
+    if not start_date_raw:
+        return "Tanggal wajib diisi"
+
+    try:
+        start_date = datetime.strptime(start_date_raw, "%Y-%m-%d").date()
+    except ValueError:
+        flash('Format tanggal tidak valid', 'danger')
+        return redirect(url_for('budgets'))
+
     try:
         amount = parse_positive_amount(request.form.get('amount'))
     except ValueError as exc:
         flash(str(exc), 'danger')
-        return redirect(url_for('budgets', month=month, year=year))
-    # Cek apakah sudah ada
-    existing = Budget.query.filter_by(user_id=current_user.id, category_id=cat_id, month=month, year=year).first()
-    if existing:
-        existing.amount = amount
-    else:
-        budget = Budget(category_id=cat_id, month=month, year=year, amount=amount, user_id=current_user.id)
-        db.session.add(budget)
+        return redirect(url_for('budgets'))
+
+    new_budget = Budget(
+        user_id=current_user.id,
+        category_id=cat_id,
+        amount=amount,
+        start_date=start_date,
+        month=start_date.month,
+        year=start_date.year,
+    )
+    db.session.add(new_budget)
     db.session.commit()
     flash('Anggaran disimpan')
-    return redirect(url_for('budgets', month=month, year=year))
+    return redirect(url_for('budgets'))
 
-@app.route('/budget/delete/<int:id>')
+@app.route('/budget/delete/<int:id>', methods=['POST'])
 @login_required
 def delete_budget(id):
-    budget = Budget.query.get_or_404(id)
-    if budget.user_id != current_user.id:
-        flash('Anda tidak memiliki akses')
-        return redirect(url_for('budgets'))
-    month, year = budget.month, budget.year
+    budget = Budget.query.filter_by(id=id, user_id=current_user.id).first_or_404()
     db.session.delete(budget)
     db.session.commit()
     flash('Anggaran dihapus')
-    return redirect(url_for('budgets', month=month, year=year))
+    return redirect(url_for('budgets'))
 
 @app.route('/api/budget-details/<int:budget_id>')
 @login_required
 def budget_details(budget_id):
-    budget = Budget.query.get_or_404(budget_id)
-    if budget.user_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    from sqlalchemy import extract
-    transactions = Transaction.query.\
-        filter(Transaction.user_id == current_user.id,
-               Transaction.category_id == budget.category_id,
-               Transaction.type == 'expense',
-               extract('month', Transaction.date) == budget.month,
-               extract('year', Transaction.date) == budget.year).\
-        order_by(Transaction.date.desc()).all()
-    
+    budget = Budget.query.filter_by(id=budget_id, user_id=current_user.id).first_or_404()
+    start_date, end_date = _get_budget_period(budget)
+    transactions = Transaction.query.filter(
+        Transaction.user_id == current_user.id,
+        Transaction.category_id == budget.category_id,
+        Transaction.date >= start_date,
+        Transaction.date < end_date,
+    ).order_by(Transaction.date.desc()).all()
+
     data = {
         'budget_category': budget.category.name,
         'budget_amount': budget.amount,
-        'month': budget.month,
-        'year': budget.year,
+        'start_date': start_date.strftime('%d/%m/%Y'),
+        'end_date': (end_date - relativedelta(days=1)).strftime('%d/%m/%Y'),
         'transactions': [{
             'date': to_wib(t.date).strftime('%d/%m/%Y'),
             'description': t.description,
@@ -703,20 +725,15 @@ def budget_details(budget_id):
 @app.route('/export/budget-pdf/<int:budget_id>')
 @login_required
 def export_budget_pdf(budget_id):
-    budget = Budget.query.get_or_404(budget_id)
-    if budget.user_id != current_user.id:
-        flash('Anda tidak memiliki akses')
-        return redirect(url_for('budgets'))
-    
-    from sqlalchemy import extract, func
-    transactions = Transaction.query.\
-        filter(Transaction.user_id == current_user.id,
-               Transaction.category_id == budget.category_id,
-               Transaction.type == 'expense',
-               extract('month', Transaction.date) == budget.month,
-               extract('year', Transaction.date) == budget.year).\
-        order_by(Transaction.date.asc()).all()
-    
+    budget = Budget.query.filter_by(id=budget_id, user_id=current_user.id).first_or_404()
+    start_date, end_date = _get_budget_period(budget)
+    transactions = Transaction.query.filter(
+        Transaction.user_id == current_user.id,
+        Transaction.category_id == budget.category_id,
+        Transaction.date >= start_date,
+        Transaction.date < end_date,
+    ).order_by(Transaction.date.asc()).all()
+
     total_spent = sum(t.amount for t in transactions)
     remaining = budget.amount - total_spent
     
@@ -761,7 +778,7 @@ def export_budget_pdf(budget_id):
     
     # Header
     elements.append(Paragraph("Laporan Detail Anggaran", title_style))
-    elements.append(Paragraph(f"Periode: {budget.month}/{budget.year}", subtitle_style))
+    elements.append(Paragraph(f"Periode: {start_date.strftime('%d/%m/%Y')} - {(end_date - relativedelta(days=1)).strftime('%d/%m/%Y')}", subtitle_style))
     elements.append(Spacer(1, 0.2 * inch))
     
     # Summary Info
@@ -823,7 +840,7 @@ def export_budget_pdf(budget_id):
 
     doc.build(elements)
     buffer.seek(0)
-    filename = f"Laporan_Anggaran_{budget.category.name}_{budget.month}_{budget.year}.pdf"
+    filename = f"Laporan_Anggaran_{budget.category.name}_{start_date.strftime('%Y%m%d')}.pdf"
     return send_file(buffer, download_name=filename, as_attachment=True)
 
 @app.route('/reports')
@@ -906,23 +923,40 @@ def income_expense_line():
 @app.route('/api/budget-realization')
 @login_required
 def budget_realization():
-    from sqlalchemy import func, extract
-    now = normalize_wib_storage(now_wib())
-    budgets = Budget.query.filter_by(user_id=current_user.id, month=now.month, year=now.year).all()
+    today = date.today()
+
+    budgets = Budget.query.filter_by(user_id=current_user.id).order_by(Budget.start_date.desc(), Budget.id.desc()).all()
+
+    active_budget = None
+    for b in budgets:
+        start, end = _get_budget_period(b)
+        if start <= today < end:
+            active_budget = b
+            break
+
+    if not active_budget and budgets:
+        active_budget = budgets[0]
+
+    print("ACTIVE BUDGET:", active_budget.id if active_budget else None)
+
     labels = []
     budget_vals = []
     real_vals = []
-    for b in budgets:
-        labels.append(b.category.name)
-        budget_vals.append(b.amount)
-        real = db.session.query(func.sum(Transaction.amount)).filter(
+
+    if active_budget:
+        start_date, end_date = _get_budget_period(active_budget)
+        transactions = Transaction.query.filter(
             Transaction.user_id == current_user.id,
-            Transaction.category_id == b.category_id,
-            Transaction.type == 'expense',
-            extract('month', Transaction.date) == now.month,
-            extract('year', Transaction.date) == now.year
-        ).scalar() or 0
-        real_vals.append(float(real))
+            Transaction.category_id == active_budget.category_id,
+            Transaction.date >= start_date,
+            Transaction.date < end_date,
+        ).all()
+
+        total_expense = sum(t.amount for t in transactions if t.type == 'expense')
+        labels.append(active_budget.category.name)
+        budget_vals.append(float(active_budget.amount))
+        real_vals.append(float(total_expense))
+
     return jsonify({'labels': labels, 'budget': budget_vals, 'real': real_vals})
 
 @app.route('/api/cashflow-data')

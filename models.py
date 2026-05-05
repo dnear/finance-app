@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import date
 
 from utils.datetime_utils import now_wib
 
@@ -63,6 +64,7 @@ class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     month = db.Column(db.Integer)
     year = db.Column(db.Integer)
+    start_date = db.Column(db.Date, nullable=True, default=date.today)
     amount = db.Column(db.Float)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)

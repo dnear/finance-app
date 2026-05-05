@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report PDF</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            color: #1f2937;
+            margin: 24px;
+            font-size: 12px;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 22px;
+        }
+
+        .meta {
+            color: #4b5563;
+            margin-bottom: 14px;
+        }
+
+        .summary {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+        }
+
+        .summary td {
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f3f4f6;
+            font-weight: 700;
+        }
+
+        .amount-income { color: #15803d; font-weight: 700; }
+        .amount-expense { color: #b91c1c; font-weight: 700; }
+    </style>
+</head>
+<body>
+    <h1>Laporan Keuangan</h1>
+    <div class="meta">
+        Kategori: {{ filters.category_id or 'Semua' }} |
+        Mulai: {{ filters.start_date or '-' }} |
+        Sampai: {{ filters.end_date or '-' }}
+    </div>
+
+    <table class="summary">
+        <tr>
+            <td><strong>Total Pemasukan</strong></td>
+            <td>Rp {{ "{:,.0f}".format(total_income) }}</td>
+            <td><strong>Total Pengeluaran</strong></td>
+            <td>Rp {{ "{:,.0f}".format(total_expense) }}</td>
+            <td><strong>Selisih</strong></td>
+            <td>Rp {{ "{:,.0f}".format(net_total) }}</td>
+        </tr>
+    </table>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Tanggal</th>
+                <th>Deskripsi</th>
+                <th>Jumlah</th>
+                <th>Kategori</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in transactions %}
+            <tr>
+                <td>{{ to_wib(t.date).strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ t.description or '-' }}</td>
+                <td class="{{ 'amount-income' if t.type == 'income' else 'amount-expense' }}">
+                    {{ '+' if t.type == 'income' else '-' }}Rp {{ "{:,.0f}".format(t.amount) }}
+                </td>
+                <td>{{ t.category.name }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4">Tidak ada transaksi untuk filter ini</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

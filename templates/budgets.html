@@ -12,7 +12,7 @@
 <div class="row">
     <div class="col-md-4">
         <div class="card">
-            <div class="card-header bg-primary text-white">Tambah/Ubah Anggaran</div>
+            <div class="card-header bg-primary text-white">Tambah Anggaran</div>
             <div class="card-body">
                 <form action="{{ url_for('add_budget') }}" method="post">
                     <div class="mb-3">
@@ -24,23 +24,9 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="row">
-                        <div class="col">
-                            <div class="mb-3">
-                                <label for="month" class="form-label">Bulan</label>
-                                <select class="form-select" name="month" required>
-                                    {% for m in range(1,13) %}
-                                        <option value="{{ m }}" {% if m==month %}selected{% endif %}>{{ m }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="mb-3">
-                                <label for="year" class="form-label">Tahun</label>
-                                <input type="number" class="form-control" name="year" value="{{ year }}" required>
-                            </div>
-                        </div>
+                    <div class="mb-3">
+                        <label for="start_date" class="form-label">Tanggal Mulai</label>
+                        <input type="date" class="form-control" name="start_date" required>
                     </div>
                     <div class="mb-3">
                         <label for="amount_display" class="form-label">Target Anggaran</label>
@@ -57,7 +43,7 @@
     </div>
     <div class="col-md-8">
         <div class="card">
-            <div class="card-header bg-primary text-white">Daftar Anggaran Bulan {{ month }}/{{ year }}</div>
+            <div class="card-header bg-primary text-white">Daftar Anggaran</div>
             <div class="card-body">
                 <table class="table table-hover">
                     <thead>
@@ -106,7 +92,9 @@
                                 {% endif %}
                             </td>
                             <td class="hide-mobile">
-                                <a href="{{ url_for('delete_budget', id=budget.id) }}" class="btn btn-sm btn-danger delete-confirm" onclick="event.stopPropagation();">Hapus</a>
+                                <form action="/budget/delete/{{ budget.id }}" method="POST" onsubmit="event.stopPropagation(); return confirm('Hapus budget ini?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
+                                </form>
                             </td>
                         </tr>
                         <tr id="details-{{ budget.id }}" class="budget-details-row d-none">
@@ -132,7 +120,9 @@
                                     </div>
                                     <div class="detail-item">
                                         <span>Aksi:</span>
-                                        <a href="{{ url_for('delete_budget', id=budget.id) }}" class="btn btn-sm btn-danger delete-confirm" onclick="event.stopPropagation();">Hapus</a>
+                                        <form action="/budget/delete/{{ budget.id }}" method="POST" onsubmit="event.stopPropagation(); return confirm('Hapus budget ini?');" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
+                                        </form>
                                     </div>
                                 </div>
                             </td>
@@ -154,7 +144,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <i class="bi bi-bar-chart"></i> Anggaran vs Realisasi Bulan {{ month }}/{{ year }}
+                <i class="bi bi-bar-chart"></i> Anggaran vs Realisasi
             </div>
             <div class="card-body">
                 <canvas id="budgetRealizationChart" width="400" height="200"></canvas>
@@ -252,7 +242,7 @@ function showBudgetDetails(budgetId) {
       html += '</div>';
       html += '<div class="col-md-6">';
       html += '<h6 class="text-muted">Periode</h6>';
-      html += '<p class="fs-5">' + data.month + '/' + data.year + '</p>';
+      html += '<p class="fs-6">' + data.start_date + ' - ' + data.end_date + '</p>';
       html += '</div>';
       html += '</div>';
       html += '<h6 class="mt-4 mb-3">Rincian Transaksi Pengeluaran</h6>';
