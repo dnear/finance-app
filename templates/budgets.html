@@ -258,11 +258,9 @@ function showBudgetDetails(budgetId) {
       html += '</thead>';
       html += '<tbody>';
       
-      let totalAmount = 0;
       if (data.transactions.length > 0) {
         data.transactions.forEach(t => {
           const amount = parseFloat(t.amount);
-          totalAmount += amount;
           html += '<tr>';
           html += '<td>' + t.date + '</td>';
           html += '<td>' + t.description + '</td>';
@@ -280,13 +278,26 @@ function showBudgetDetails(budgetId) {
       html += '<div class="row mt-3 pt-3 border-top">';
       html += '<div class="col-md-6">';
       html += '<h6 class="text-muted">Total Pengeluaran</h6>';
-      html += '<p class="fs-5 fw-bold text-danger">Rp ' + totalAmount.toLocaleString('id-ID', {maximumFractionDigits: 0}) + '</p>';
+      html += '<p class="fs-5 fw-bold text-danger">Rp ' + parseFloat(data.total_expense).toLocaleString('id-ID', {maximumFractionDigits: 0}) + '</p>';
       html += '</div>';
       html += '<div class="col-md-6">';
+      html += '<h6 class="text-muted">Total Pemasukan</h6>';
+      html += '<p class="fs-5 fw-bold text-success">Rp ' + parseFloat(data.total_income).toLocaleString('id-ID', {maximumFractionDigits: 0}) + '</p>';
+      html += '</div>';
+      html += '</div>';
+      html += '<div class="row mt-2">';
+      html += '<div class="col-md-6">';
       html += '<h6 class="text-muted">Sisa Anggaran</h6>';
-      const remainingClass = (data.budget_amount - totalAmount) >= 0 ? 'text-success' : 'text-danger';
+      const remainingClass = parseFloat(data.remaining) >= 0 ? 'text-success' : 'text-danger';
       html += '<p class="fs-5 fw-bold ' + remainingClass + '">';
-      html += 'Rp ' + (data.budget_amount - totalAmount).toLocaleString('id-ID', {maximumFractionDigits: 0});
+      html += 'Rp ' + parseFloat(data.remaining).toLocaleString('id-ID', {maximumFractionDigits: 0});
+      html += '</p>';
+      html += '</div>';
+      html += '<div class="col-md-6">';
+      const netClass = parseFloat(data.net) >= 0 ? 'text-success' : 'text-danger';
+      html += '<h6 class="text-muted">Selisih (Info)</h6>';
+      html += '<p class="fs-5 fw-bold ' + netClass + '">';
+      html += 'Rp ' + parseFloat(data.net).toLocaleString('id-ID', {maximumFractionDigits: 0});
       html += '</p>';
       html += '</div>';
       html += '</div>';

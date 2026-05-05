@@ -643,11 +643,24 @@ def budgets():
             Transaction.date >= start_date,
             Transaction.date < end_date,
         ).all()
-        total_expense = sum(t.amount for t in transactions if t.type == 'expense')
+        total_expense = sum(
+            t.amount for t in transactions
+            if t.type == 'expense'
+        )
+        total_income = sum(
+            t.amount for t in transactions
+            if t.type == 'income'
+        )
+        remaining = budget.amount - total_expense
+        net = total_income - total_expense
 
         budget_data.append({
             'budget': budget,
             'terpakai': float(total_expense),
+            'total_expense': float(total_expense),
+            'total_income': float(total_income),
+            'remaining': float(remaining),
+            'net': float(net),
             'start_date': start_date,
             'end_date': end_date,
         })
@@ -708,11 +721,26 @@ def budget_details(budget_id):
         Transaction.date < end_date,
     ).order_by(Transaction.date.desc()).all()
 
+    total_expense = sum(
+        t.amount for t in transactions
+        if t.type == 'expense'
+    )
+    total_income = sum(
+        t.amount for t in transactions
+        if t.type == 'income'
+    )
+    remaining = budget.amount - total_expense
+    net = total_income - total_expense
+
     data = {
         'budget_category': budget.category.name,
         'budget_amount': budget.amount,
         'start_date': start_date.strftime('%d/%m/%Y'),
         'end_date': (end_date - relativedelta(days=1)).strftime('%d/%m/%Y'),
+        'total_expense': float(total_expense),
+        'total_income': float(total_income),
+        'remaining': float(remaining),
+        'net': float(net),
         'transactions': [{
             'date': to_wib(t.date).strftime('%d/%m/%Y'),
             'description': t.description,
@@ -734,8 +762,16 @@ def export_budget_pdf(budget_id):
         Transaction.date < end_date,
     ).order_by(Transaction.date.asc()).all()
 
-    total_spent = sum(t.amount for t in transactions)
-    remaining = budget.amount - total_spent
+    total_expense = sum(
+        t.amount for t in transactions
+        if t.type == 'expense'
+    )
+    total_income = sum(
+        t.amount for t in transactions
+        if t.type == 'income'
+    )
+    remaining = budget.amount - total_expense
+    net = total_income - total_expense
     
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=portrait(letter), 
@@ -785,16 +821,20 @@ def export_budget_pdf(budget_id):
     summary_data = [
         [Paragraph("<b>Kategori</b>", normal_style), f": {budget.category.name}"],
         [Paragraph("<b>Target Anggaran</b>", normal_style), f": Rp {budget.amount:,.0f}"],
-        [Paragraph("<b>Total Terpakai</b>", normal_style), f": Rp {total_spent:,.0f}"],
+        [Paragraph("<b>Total Pengeluaran</b>", normal_style), f": Rp {total_expense:,.0f}"],
+        [Paragraph("<b>Total Pemasukan</b>", normal_style), f": Rp {total_income:,.0f}"],
         [Paragraph("<b>Sisa Anggaran</b>", normal_style), f": Rp {remaining:,.0f}"],
-        [Paragraph("<b>Status</b>", normal_style), f": {'Melebihi' if total_spent > budget.amount else 'Aman'}"]
+        [Paragraph("<b>Selisih (Informasi)</b>", normal_style), f": Rp {net:,.0f}"],
+        [Paragraph("<b>Status</b>", normal_style), f": {'Melebihi' if total_expense > budget.amount else 'Aman'}"]
     ]
     
     summary_table = Table(summary_data, colWidths=[1.5*inch, 4*inch])
     summary_table.setStyle(TableStyle([
         ('ALIGN', (0,0), (-1,-1), 'LEFT'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TEXTCOLOR', (1,2), (1,2), colors.red if total_spent > budget.amount else colors.green),
+        ('TEXTCOLOR', (1,2), (1,2), colors.red if total_expense > budget.amount else colors.green),
+        ('TEXTCOLOR', (1,3), (1,3), colors.green),
+        ('TEXTCOLOR', (1,5), (1,5), colors.green if net >= 0 else colors.red),
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
         ('FONTSIZE', (0,0), (-1,-1), 11),
         ('BOTTOMPADDING', (0,0), (-1,-1), 8),
