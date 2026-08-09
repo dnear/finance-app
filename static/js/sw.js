@@ -1,74 +1,110 @@
-const CACHE_NAME = 'finance-app-v5';
+const CACHE_NAME = 'finance-app-v6';
 
-const urlsToCache = [
-  '/',
-  '/dashboard',
-  '/transactions',
-  '/offline',
-  '/static/css/style.css',
-  '/static/js/script.js'
+const STATIC_ASSETS = [
+    '/offline',
+    '/static/css/style.css',
+    '/static/js/script.js',
+    '/static/icons/icon-192.png',
+    '/static/icons/icon-512.png',
+    '/static/manifest.json'
 ];
 
-// 🟢 INSTALL
+// ================================
+// INSTALL
+// ================================
 self.addEventListener('install', event => {
-  self.skipWaiting();
+    console.log('[SW] Installing...');
 
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(urlsToCache);
-    })
-  );
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then(cache => cache.addAll(STATIC_ASSETS))
+            .then(() => self.skipWaiting())
+    );
 });
 
-// 🟢 ACTIVATE
+
+// ================================
+// ACTIVATE
+// ================================
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(names => {
-      return Promise.all(
-        names.map(name => {
-          if (name !== CACHE_NAME) {
-            return caches.delete(name);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
-  );
+    console.log('[SW] Activating...');
+
+    event.waitUntil(
+        caches.keys()
+            .then(cacheNames => {
+                return Promise.all(
+                    cacheNames
+                        .filter(name => name !== CACHE_NAME)
+                        .map(name => caches.delete(name))
+                );
+            })
+            .then(() => self.clients.claim())
+    );
 });
 
-// 🟢 FETCH (CORE LOGIC)
+
+// ================================
+// FETCH
+// ================================
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then(cached => {
-      
-      // ✅ kalau ada di cache → langsung pakai
-      if (cached) {
-        return cached;
-      }
+    // Hanya GET
+    if (event.request.method !== 'GET') {
+        return;
+    }
 
-      // 🌐 kalau tidak ada → ambil dari network
-      return fetch(event.request)
-        .then(networkResponse => {
-          // cache response jika valid
-          if (
-            networkResponse &&
-            networkResponse.status === 200 &&
-            event.request.url.startsWith(self.location.origin)
-          ) {
-            const clone = networkResponse.clone();
+    const request = event.request;
+    const url = new URL(request.url);
 
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, clone);
-            });
-          }
+    // Jangan intercept request dari domain lain
+    if (url.origin !== self.location.origin) {
+        return;
+    }
 
-          return networkResponse;
-        })
-        .catch(() => {
-          // 📵 fallback kalau offline
-          return caches.match('/offline');
-        });
-    })
-  );
+    // ============================
+    // STATIC ASSETS
+    // Cache First
+    // ============================
+    if (
+        url.pathname.startsWith('/static/')
+    ) {
+        event.respondWith(
+            caches.match(request)
+                .then(cached => {
+
+                    if (cached) {
+                        return cached;
+                    }
+
+                    return fetch(request);
+                })
+        );
+
+        return;
+    }
+
+
+    // ============================
+    // HTML / APP PAGES
+    // Network First
+    // ============================
+    if (
+        request.headers.get('accept')?.includes('text/html')
+    ) {
+
+        event.respondWith(
+            fetch(request)
+                .catch(() => {
+                    return caches.match('/offline');
+                })
+        );
+
+        return;
+    }
+
+
+    // ============================
+    // OTHER REQUESTS
+    // Network only
+    // ============================
 });
