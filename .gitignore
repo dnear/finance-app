@@ -32,3 +32,6 @@ backup_*.sql
 # OS
 .DS_Store
 Thumbs.db
+
+# Python virtual environment
+financeapp/
