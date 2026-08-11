@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "net.ts.tail0ca0b3.dnear.twa",
+      "sha256_cert_fingerprints": [
+        "6F:69:41:9A:D6:CB:09:50:27:C3:25:E6:5F:E1:6A:5F:16:16:CE:5A:1F:32:A4:5B:6E:FF:8A:32:50:8E:D8:0D"
+      ]
+    }
+  }
+]

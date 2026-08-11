@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_file
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_file, send_from_directory
 from flask_caching import Cache
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from models import db, User, Category, Wallet, Transaction, Budget, SharedWallet
@@ -292,6 +292,13 @@ def logout():
 def offline():
     return render_template('offline.html')
 
+@app.route('/.well-known/assetlinks.json')
+def assetlinks():
+    return send_from_directory(
+        os.path.join(app.static_folder, '.well-known'),
+        'assetlinks.json',
+        mimetype='application/json'
+    )
 
 @app.after_request
 def configure_service_worker(response):
