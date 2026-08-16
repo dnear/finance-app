@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-app-v6';
+const CACHE_NAME = 'finance-app-v7';
 
 const STATIC_ASSETS = [
     '/offline',
@@ -6,6 +6,7 @@ const STATIC_ASSETS = [
     '/static/js/script.js',
     '/static/icons/icon-192.png',
     '/static/icons/icon-512.png',
+    '/static/icons/icon-512-maskable.png',
     '/static/manifest.json'
 ];
 
@@ -13,7 +14,7 @@ const STATIC_ASSETS = [
 // INSTALL
 // ================================
 self.addEventListener('install', event => {
-    console.log('[SW] Installing...');
+    console.log('[SW] Installing', CACHE_NAME);
 
     event.waitUntil(
         caches.open(CACHE_NAME)
@@ -27,7 +28,7 @@ self.addEventListener('install', event => {
 // ACTIVATE
 // ================================
 self.addEventListener('activate', event => {
-    console.log('[SW] Activating...');
+    console.log('[SW] Activating', CACHE_NAME);
 
     event.waitUntil(
         caches.keys()
@@ -56,27 +57,37 @@ self.addEventListener('fetch', event => {
     const request = event.request;
     const url = new URL(request.url);
 
-    // Jangan intercept request dari domain lain
+    // Hanya handle origin sendiri
     if (url.origin !== self.location.origin) {
         return;
     }
 
-    // ============================
+    // ================================
     // STATIC ASSETS
     // Cache First
-    // ============================
-    if (
-        url.pathname.startsWith('/static/')
-    ) {
+    // ================================
+    if (url.pathname.startsWith('/static/')) {
+
         event.respondWith(
             caches.match(request)
                 .then(cached => {
-
                     if (cached) {
                         return cached;
                     }
 
-                    return fetch(request);
+                    return fetch(request).then(response => {
+
+                        if (response && response.ok) {
+                            const responseClone = response.clone();
+
+                            caches.open(CACHE_NAME)
+                                .then(cache => {
+                                    cache.put(request, responseClone);
+                                });
+                        }
+
+                        return response;
+                    });
                 })
         );
 
@@ -84,18 +95,46 @@ self.addEventListener('fetch', event => {
     }
 
 
-    // ============================
+    // ================================
     // HTML / APP PAGES
     // Network First
-    // ============================
+    // ================================
     if (
         request.headers.get('accept')?.includes('text/html')
     ) {
 
         event.respondWith(
+
             fetch(request)
+                .then(response => {
+
+                    // Simpan halaman HTML yang berhasil dibuka
+                    if (response && response.ok) {
+
+                        const responseClone = response.clone();
+
+                        caches.open(CACHE_NAME)
+                            .then(cache => {
+                                cache.put(request, responseClone);
+                            });
+                    }
+
+                    return response;
+                })
+
                 .catch(() => {
-                    return caches.match('/offline');
+
+                    // Jika offline, gunakan halaman yang pernah dibuka
+                    return caches.match(request)
+                        .then(cachedPage => {
+
+                            if (cachedPage) {
+                                return cachedPage;
+                            }
+
+                            // Kalau belum pernah dibuka
+                            return caches.match('/offline');
+                        });
                 })
         );
 
@@ -103,8 +142,8 @@ self.addEventListener('fetch', event => {
     }
 
 
-    // ============================
-    // OTHER REQUESTS
+    // ================================
+    // OTHER GET REQUESTS
     // Network only
-    // ============================
+    // ================================
 });
