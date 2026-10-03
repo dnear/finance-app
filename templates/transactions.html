@@ -309,8 +309,8 @@
                         <label for="amount_display{{ t.id }}" class="form-label fw-semibold">Jumlah (Rp)</label>
                         <div class="input-group">
                             <span class="input-group-text">Rp</span>
-                            <input type="hidden" name="amount" value="{{ t.amount }}">
-                            <input type="text" class="form-control" id="amount_display{{ t.id }}" name="amount_display" data-rupiah inputmode="numeric" value="{{ t.amount }}" required>
+                            <input type="hidden" name="amount" value="{{ t.amount|int }}">
+                            <input type="text" class="form-control" id="amount_display{{ t.id }}" name="amount_display" data-rupiah inputmode="numeric" value="{{ t.amount|int }}" required>
                         </div>
                     </div>
                     <div class="mb-3">
